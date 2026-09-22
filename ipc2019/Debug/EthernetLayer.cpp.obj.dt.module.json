@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\EthernetLayer.obj",
+            "outputs": [
+                "Debug\\EthernetLayer.cpp.obj.dt.module.json",
+                "Debug\\EthernetLayer.cpp.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

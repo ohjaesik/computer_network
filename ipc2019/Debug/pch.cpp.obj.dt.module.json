@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\pch.obj",
+            "outputs": [
+                "Debug\\pch.cpp.obj.dt.module.json",
+                "Debug\\pch.cpp.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\ChatAppLayer.obj",
+            "outputs": [
+                "Debug\\ChatAppLayer.h.obj.dt.module.json",
+                "Debug\\ChatAppLayer.h.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

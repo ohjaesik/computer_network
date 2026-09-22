@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\EthernetLayer.obj",
+            "outputs": [
+                "Debug\\EthernetLayer.h.obj.dt.module.json",
+                "Debug\\EthernetLayer.h.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

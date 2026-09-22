@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\ipc2019Dlg.obj",
+            "outputs": [
+                "Debug\\ipc2019Dlg.cpp.obj.dt.module.json",
+                "Debug\\ipc2019Dlg.cpp.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\FileLayer.obj",
+            "outputs": [
+                "Debug\\FileLayer.cpp.obj.dt.module.json",
+                "Debug\\FileLayer.cpp.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}

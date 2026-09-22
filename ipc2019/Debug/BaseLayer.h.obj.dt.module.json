@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\BaseLayer.obj",
+            "outputs": [
+                "Debug\\BaseLayer.h.obj.dt.module.json",
+                "Debug\\BaseLayer.h.obj.dt.d.json",
+                "Debug\\ipc2019.pch"
+            ],
+            "requires": []
+        }
+    ]
+}
