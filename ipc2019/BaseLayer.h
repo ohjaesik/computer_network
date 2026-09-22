@@ -1,45 +1,58 @@
 #pragma once
-// BaseLayer.h: interface for the CBaseLayer class.
-//
-//////////////////////////////////////////////////////////////////////
 
-#include "pch.h"
-#include"stdafx.h"
-
-#if !defined(AFX_BASELAYER_H__041C5A07_23A9_4CBC_970B_8743460A7DA9__INCLUDED_)
-#define AFX_BASELAYER_H__041C5A07_23A9_4CBC_970B_8743460A7DA9__INCLUDED_
-
-#if _MSC_VER > 1000
-#pragma once
-#endif // _MSC_VER > 1000
+#include "stdafx.h"
 
 class CBaseLayer
 {
 public:
-	char* GetLayerName();
+    explicit CBaseLayer(const char* pName = NULL);
+    virtual ~CBaseLayer();
 
-	CBaseLayer* GetUnderLayer();
-	CBaseLayer* GetUpperLayer(int nindex);
-	void			SetUnderUpperLayer(CBaseLayer* pUULayer = NULL);
-	void			SetUpperUnderLayer(CBaseLayer* pUULayer = NULL);
-	void			SetUnderLayer(CBaseLayer* pUnderLayer = NULL);
-	void			SetUpperLayer(CBaseLayer* pUpperLayer = NULL);
+    const char* GetLayerName() const;
 
-	CBaseLayer(char* pName = NULL);
-	virtual ~CBaseLayer();
+    CBaseLayer* GetUnderLayer() const;
+    CBaseLayer* GetUpperLayer(int nindex) const;
+    int GetUpperLayerCount() const;
 
-	// param : unsigned char*	- the data of the upperlayer
-	//         int				- the length of data
-	virtual	BOOL	Send(unsigned char*, int) { return FALSE; }
-	// param : unsigned char*	- the data of the underlayer
-	virtual	BOOL	Receive(unsigned char* ppayload) { return FALSE; }
-	virtual	BOOL	Receive() { return FALSE; }
+    void SetUnderUpperLayer(CBaseLayer* pUULayer = NULL);
+    void SetUpperUnderLayer(CBaseLayer* pUULayer = NULL);
+    void SetUnderLayer(CBaseLayer* pUnderLayer = NULL);
+    void SetUpperLayer(CBaseLayer* pUpperLayer = NULL);
+
+    // Legacy Assignment 3 interface.
+    virtual BOOL Send(unsigned char*, int) { return FALSE; }
+    virtual BOOL Receive(unsigned char*) { return FALSE; }
+    virtual BOOL Receive() { return FALSE; }
+
+    // Assignment 4 interfaces. The protocol argument lets two application
+    // layers share one Ethernet layer without racing on mutable type state.
+    virtual BOOL Send(unsigned char* ppayload, int nlength, uint16_t protocol)
+    {
+        UNREFERENCED_PARAMETER(protocol);
+        return Send(ppayload, nlength);
+    }
+
+    virtual BOOL Receive(unsigned char* ppayload, int nlength)
+    {
+        UNREFERENCED_PARAMETER(nlength);
+        return Receive(ppayload);
+    }
+
+    virtual BOOL Receive(
+        unsigned char* ppayload,
+        int nlength,
+        const unsigned char* sourceAddress,
+        const unsigned char* destinationAddress)
+    {
+        UNREFERENCED_PARAMETER(sourceAddress);
+        UNREFERENCED_PARAMETER(destinationAddress);
+        return Receive(ppayload, nlength);
+    }
 
 protected:
-	char* m_pLayerName;
-	CBaseLayer* mp_UnderLayer;							// UnderLayer pointer
-	CBaseLayer* mp_aUpperLayer[MAX_LAYER_NUMBER];		// UpperLayer pointer
-	int				m_nUpperLayerCount;						// UpperLayer Count
+    const char* m_pLayerName;
+    CBaseLayer* mp_UnderLayer;
+    CBaseLayer* mp_aUpperLayer[MAX_LAYER_NUMBER];
+    int m_nUpperLayerCount;
 };
 
-#endif // !defined(AFX_BASELAYER_H__041C5A07_23A9_4CBC_970B_8743460A7DA9__INCLUDED_)

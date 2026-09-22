@@ -1,60 +1,46 @@
-// LayerManager.h: interface for the CLayerManager class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_LAYERMANAGER_H__D9F8CF34_8A6D_425A_BDB9_47A4874FF902__INCLUDED_)
-#define AFX_LAYERMANAGER_H__D9F8CF34_8A6D_425A_BDB9_47A4874FF902__INCLUDED_
-
-#include "pch.h"
-#include "BaseLayer.h"
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
+
+#include "BaseLayer.h"
 
 class CLayerManager
 {
 private:
-	typedef struct _NODE {
-
-		char			token[50];
-		struct _NODE* next;
-
-	} NODE, * PNODE;
+    struct NODE
+    {
+        char token[50];
+        NODE* next;
+    };
+    typedef NODE* PNODE;
 
 public:
-	void			DeAllocLayer();
+    CLayerManager();
+    virtual ~CLayerManager();
 
-	void			ConnectLayers(char* pcList);
-	CBaseLayer* GetLayer(char* pName);
-	CBaseLayer* GetLayer(int nindex);
-	void			AddLayer(CBaseLayer* pLayer);
-
-	CLayerManager();
-	virtual ~CLayerManager();
+    void AddLayer(CBaseLayer* pLayer, BOOL bOwned = TRUE);
+    CBaseLayer* GetLayer(const char* pName) const;
+    CBaseLayer* GetLayer(int nindex) const;
+    void ConnectLayers(const char* pcList);
+    void DeAllocLayer();
 
 private:
-	// about stack...
-	int				m_nTop;
-	CBaseLayer* mp_Stack[MAX_LAYER_NUMBER];
+    CBaseLayer* mp_aLayers[MAX_LAYER_NUMBER];
+    BOOL m_abOwned[MAX_LAYER_NUMBER];
+    int m_nLayerCount;
 
-	CBaseLayer* Top();
-	CBaseLayer* Pop();
-	void			Push(CBaseLayer* pLayer);
+    CBaseLayer* mp_Stack[MAX_LAYER_NUMBER];
+    int m_nTop;
 
-	PNODE			mp_sListHead;
-	PNODE			mp_sListTail;
+    PNODE mp_sListHead;
+    PNODE mp_sListTail;
 
-	// about Link Layer...
-	void			LinkLayer(PNODE pNode);
+    CBaseLayer* Top() const;
+    CBaseLayer* Pop();
+    void Push(CBaseLayer* pLayer);
 
-	inline void		AddNode(PNODE pNode);
-	inline PNODE	AllocNode(char* pcName);
-	void			MakeList(char* pcList);
-
-	int				m_nLayerCount;
-	CBaseLayer* mp_aLayers[MAX_LAYER_NUMBER];
-
+    PNODE AllocNode(const char* pcName);
+    void AddNode(PNODE pNode);
+    void MakeList(const char* pcList);
+    void LinkLayer(PNODE pNode);
+    void ClearNodes();
 };
 
-#endif // !defined(AFX_LAYERMANAGER_H__D9F8CF34_8A6D_425A_BDB9_47A4874FF902__INCLUDED_)

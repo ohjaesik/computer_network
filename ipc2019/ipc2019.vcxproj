@@ -30,7 +30,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -74,6 +74,25 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <NpcapLibraryDirectory>$(NPCAP_SDK_DIR)\Lib</NpcapLibraryDirectory>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <NpcapLibraryDirectory>$(NPCAP_SDK_DIR)\Lib\x64</NpcapLibraryDirectory>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(NPCAP_SDK_DIR)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ResourceCompile>
+      <AdditionalOptions>/c65001 %(AdditionalOptions)</AdditionalOptions>
+    </ResourceCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(NpcapLibraryDirectory);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wpcap.lib;Packet.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
@@ -186,6 +205,8 @@
     <ClInclude Include="BaseLayer.h" />
     <ClInclude Include="ChatAppLayer.h" />
     <ClInclude Include="FileLayer.h" />
+    <ClInclude Include="FileAppLayer.h" />
+    <ClInclude Include="NILayer.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="ipc2019.h" />
     <ClInclude Include="ipc2019Dlg.h" />
@@ -201,6 +222,8 @@
     <ClCompile Include="ChatAppLayer.cpp" />
     <ClCompile Include="EthernetLayer.cpp" />
     <ClCompile Include="FileLayer.cpp" />
+    <ClCompile Include="FileAppLayer.cpp" />
+    <ClCompile Include="NILayer.cpp" />
     <ClCompile Include="ipc2019.cpp" />
     <ClCompile Include="ipc2019Dlg.cpp" />
     <ClCompile Include="LayerManager.cpp" />

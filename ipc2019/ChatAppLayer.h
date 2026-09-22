@@ -1,62 +1,63 @@
 #pragma once
-// ChatAppLayer.h: interface for the CChatAppLayer class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_CHATAPPLAYER_H__E78615DE_0F23_41A9_B814_34E2B3697EF2__INCLUDED_)
-#define AFX_CHATAPPLAYER_H__E78615DE_0F23_41A9_B814_34E2B3697EF2__INCLUDED_
-
-#if _MSC_VER > 1000
-#pragma once
-#endif // _MSC_VER > 1000
 
 #include "BaseLayer.h"
-#include "pch.h"
-class CChatAppLayer
-	: public CBaseLayer
+
+#pragma pack(push, 1)
+typedef struct _CHAT_APP_HEADER
 {
-private:
-	inline void		ResetHeader();
-	CObject* mp_Dlg;
+    uint16_t capp_totlen;
+    unsigned char capp_type;
+    unsigned char capp_unused;
+    unsigned char capp_data[CHAT_APP_DATA_SIZE];
+} CHAT_APP_HEADER, *PCHAT_APP_HEADER;
 
+// Kept so the Assignment 3 application-address format remains documented in
+// the extended project even though Assignment 4 uses Ethernet MAC addresses.
+typedef struct _LEGACY_CHAT_APP_HEADER
+{
+    unsigned int app_dstaddr;
+    unsigned int app_srcaddr;
+    unsigned short app_length;
+    unsigned char app_type;
+    unsigned char app_data[APP_DATA_SIZE];
+} LEGACY_CHAT_APP_HEADER, *PLEGACY_CHAT_APP_HEADER;
+#pragma pack(pop)
+
+static_assert(sizeof(CHAT_APP_HEADER) == ETHER_MAX_DATA_SIZE,
+              "Chat header plus data must equal the Ethernet MTU.");
+
+class CChatAppLayer : public CBaseLayer
+{
 public:
-	BOOL			Receive(unsigned char* ppayload);
-	BOOL			Send(unsigned char* ppayload, int nlength);
-	unsigned int	GetDestinAddress();
-	unsigned int	GetSourceAddress();
-	void			SetDestinAddress(unsigned int dst_addr);
-	void			SetSourceAddress(unsigned int src_addr);
+    explicit CChatAppLayer(const char* pName);
+    virtual ~CChatAppLayer();
 
-	CChatAppLayer(char* pName);
-	virtual ~CChatAppLayer();
+    virtual BOOL Send(unsigned char* ppayload, int nlength);
+    virtual BOOL Receive(unsigned char* ppayload);
+    virtual BOOL Receive(
+        unsigned char* ppayload,
+        int nlength,
+        const unsigned char* sourceAddress,
+        const unsigned char* destinationAddress);
 
-	typedef struct _CHAT_APP_HEADER {
+    // Assignment 3 accessors are retained for source compatibility.
+    unsigned int GetDestinAddress() const;
+    unsigned int GetSourceAddress() const;
+    void SetDestinAddress(unsigned int dstAddress);
+    void SetSourceAddress(unsigned int srcAddress);
 
-		unsigned int	app_dstaddr; // destination address of application layer
-		unsigned int	app_srcaddr; // source address of application layer
-		unsigned short	app_length; // total length of the data
-		unsigned char	app_type; // type of application data
-		unsigned char	app_data[APP_DATA_SIZE]; // application data
+private:
+    unsigned int m_unLegacySourceAddress;
+    unsigned int m_unLegacyDestinationAddress;
 
-	} CHAT_APP_HEADER, * PCHAT_APP_HEADER;
+    std::vector<unsigned char> m_ReceiveBuffer;
+    uint16_t m_nExpectedLength;
+    BOOL m_bReceivingFragments;
+    unsigned char m_ReceiveSource[ETHERNET_ADDRESS_SIZE];
+    unsigned char m_ReceiveDestination[ETHERNET_ADDRESS_SIZE];
+    CCriticalSection m_ReceiveLock;
 
-protected:
-	CHAT_APP_HEADER		m_sHeader;
-
-	enum {
-		DATA_TYPE_CONT = 0x01,
-		DATA_TYPE_END = 0x02
-	};
+    void ResetReceiveState();
+    BOOL DeliverCompletedMessage();
 };
-
-#endif // !defined(AFX_CHATAPPLAYER_H__E78615DE_0F23_41A9_B814_34E2B3697EF2__INCLUDED_)
-
-
-
-
-
-
-
-
-
 

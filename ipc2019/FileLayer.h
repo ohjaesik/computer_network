@@ -1,26 +1,16 @@
-// FileLayer.h: interface for the CFileLayer class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_FILELAYER_H__D67222B3_1B00_4C77_84A4_CEF6D572E181__INCLUDED_)
-#define AFX_FILELAYER_H__D67222B3_1B00_4C77_84A4_CEF6D572E181__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 
 #include "BaseLayer.h"
-#include "pch.h"
 
-class CFileLayer
-	: public CBaseLayer
+// Assignment 3 file-backed IPC layer. It is intentionally kept in the project
+// for comparison, while Assignment 4 uses CNILayer as the active lower layer.
+class CFileLayer : public CBaseLayer
 {
 public:
-	BOOL	Receive();
-	BOOL	Send(unsigned char* ppayload, int nlength);
+    explicit CFileLayer(const char* pName);
+    virtual ~CFileLayer();
 
-	CFileLayer(char* pName);
-	virtual ~CFileLayer();
+    virtual BOOL Receive();
+    virtual BOOL Send(unsigned char* ppayload, int nlength);
 };
 
-#endif // !defined(AFX_FILELAYER_H__D67222B3_1B00_4C77_84A4_CEF6D572E181__INCLUDED_)

@@ -1,45 +1,51 @@
-// EthernetLayer.h: interface for the CEthernetLayer class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_ETHERNETLAYER_H__7857C9C2_B459_4DC8_B9B3_4E6C8B587B29__INCLUDED_)
-#define AFX_ETHERNETLAYER_H__7857C9C2_B459_4DC8_B9B3_4E6C8B587B29__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 
 #include "BaseLayer.h"
-#include "pch.h"
 
-class CEthernetLayer
-	: public CBaseLayer
+#pragma pack(push, 1)
+typedef struct _ETHERNET_HEADER
 {
-private:
-	inline void		ResetHeader();
+    unsigned char enet_dstaddr[ETHERNET_ADDRESS_SIZE];
+    unsigned char enet_srcaddr[ETHERNET_ADDRESS_SIZE];
+    uint16_t enet_type;
+    unsigned char enet_data[ETHER_MAX_DATA_SIZE];
+} ETHERNET_HEADER, *PETHERNET_HEADER;
+#pragma pack(pop)
 
+static_assert(sizeof(ETHERNET_HEADER) == ETHER_MAX_SIZE,
+              "Ethernet header packing must produce a 1514-byte frame buffer.");
+
+class CEthernetLayer : public CBaseLayer
+{
 public:
-	BOOL			Receive(unsigned char* ppayload);
-	BOOL			Send(unsigned char* ppayload, int nlength);
-	void			SetDestinAddress(unsigned char* pAddress);
-	void			SetSourceAddress(unsigned char* pAddress);
-	unsigned char* GetDestinAddress();
-	unsigned char* GetSourceAddress();
+    explicit CEthernetLayer(const char* pName);
+    virtual ~CEthernetLayer();
 
-	CEthernetLayer(char* pName);
-	virtual ~CEthernetLayer();
+    virtual BOOL Send(unsigned char* ppayload, int nlength);
+    virtual BOOL Send(
+        unsigned char* ppayload,
+        int nlength,
+        uint16_t protocol);
 
-	typedef struct _ETHERNET_HEADER {
+    virtual BOOL Receive(unsigned char* ppayload);
+    virtual BOOL Receive(unsigned char* ppayload, int nlength);
 
-		unsigned char	enet_dstaddr[6];		// destination address of ethernet layer
-		unsigned char	enet_srcaddr[6];		// source address of ethernet layer
-		unsigned short	enet_type;		// type of ethernet layer
-		unsigned char	enet_data[ETHER_MAX_DATA_SIZE]; // frame data
+    void SetDestinAddress(const unsigned char* pAddress);
+    void SetSourceAddress(const unsigned char* pAddress);
+    unsigned char* GetDestinAddress();
+    unsigned char* GetSourceAddress();
+    void GetDestinAddress(unsigned char* pAddress);
+    void GetSourceAddress(unsigned char* pAddress);
 
-	} ETHERNET_HEADER, * PETHERNET_HEADER;
+private:
+    ETHERNET_HEADER m_sHeader;
+    CCriticalSection m_AddressLock;
 
-protected:
-	ETHERNET_HEADER	m_sHeader;
+    void ResetHeader();
+    CBaseLayer* FindUpperLayer(const char* layerName) const;
+    static BOOL IsSameAddress(
+        const unsigned char* lhs,
+        const unsigned char* rhs);
+    static BOOL IsBroadcastAddress(const unsigned char* address);
 };
 
-#endif // !defined(AFX_ETHERNETLAYER_H__7857C9C2_B459_4DC8_B9B3_4E6C8B587B29__INCLUDED_)

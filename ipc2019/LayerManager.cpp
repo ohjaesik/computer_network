@@ -1,9 +1,5 @@
-#pragma once
-// LayerManager.cpp: implementation of the CLayerManager class.
-//
-//////////////////////////////////////////////////////////////////////
+// LayerManager.cpp: creates links from a compact layer expression.
 
-#include "stdafx.h"
 #include "pch.h"
 #include "LayerManager.h"
 
@@ -13,175 +9,190 @@ static char THIS_FILE[] = __FILE__;
 #define new DEBUG_NEW
 #endif
 
-//////////////////////////////////////////////////////////////////////
-// Construction/Destruction
-//////////////////////////////////////////////////////////////////////
-
 CLayerManager::CLayerManager()
-	: m_nLayerCount(0),
-	mp_sListHead(NULL),
-	mp_sListTail(NULL),
-	m_nTop(-1)
+    : m_nLayerCount(0),
+      m_nTop(-1),
+      mp_sListHead(NULL),
+      mp_sListTail(NULL)
 {
-
+    memset(mp_aLayers, 0, sizeof(mp_aLayers));
+    memset(m_abOwned, 0, sizeof(m_abOwned));
+    memset(mp_Stack, 0, sizeof(mp_Stack));
 }
 
 CLayerManager::~CLayerManager()
 {
-
+    ClearNodes();
+    DeAllocLayer();
 }
 
-void CLayerManager::AddLayer(CBaseLayer* pLayer)
+void CLayerManager::AddLayer(CBaseLayer* pLayer, BOOL bOwned)
 {
-	mp_aLayers[m_nLayerCount++] = pLayer;
+    if (pLayer == NULL || m_nLayerCount >= MAX_LAYER_NUMBER)
+        return;
+
+    mp_aLayers[m_nLayerCount] = pLayer;
+    m_abOwned[m_nLayerCount] = bOwned;
+    ++m_nLayerCount;
 }
 
-CBaseLayer* CLayerManager::GetLayer(int nindex)
+CBaseLayer* CLayerManager::GetLayer(int nindex) const
 {
-	return mp_aLayers[nindex];
+    if (nindex < 0 || nindex >= m_nLayerCount)
+        return NULL;
+    return mp_aLayers[nindex];
 }
 
-CBaseLayer* CLayerManager::GetLayer(char* pName)
+CBaseLayer* CLayerManager::GetLayer(const char* pName) const
 {
-	for (int i = 0; i < m_nLayerCount; i++)
-	{
-		if (!strcmp(pName, mp_aLayers[i]->GetLayerName()))
-			return mp_aLayers[i];
-	}
+    if (pName == NULL)
+        return NULL;
 
-	return NULL;
+    for (int i = 0; i < m_nLayerCount; ++i)
+    {
+        if (mp_aLayers[i] != NULL &&
+            strcmp(pName, mp_aLayers[i]->GetLayerName()) == 0)
+            return mp_aLayers[i];
+    }
+
+    return NULL;
 }
 
-void CLayerManager::ConnectLayers(char* pcList)
+void CLayerManager::ConnectLayers(const char* pcList)
 {
-	MakeList(pcList);
-	LinkLayer(mp_sListHead);
-	int arr;
-	arr = 3;
+    MakeList(pcList);
+    LinkLayer(mp_sListHead);
+    ClearNodes();
 }
 
-void CLayerManager::MakeList(char* pcList)
+void CLayerManager::MakeList(const char* pcList)
 {
-	// strtok_s modifies its buffer, but pcList is a string literal.
-	size_t nSize = strlen(pcList) + 1;
-	char* pcCopy = new char[nSize];
-	strcpy_s(pcCopy, nSize, pcList);
+    ClearNodes();
+    if (pcList == NULL)
+        return;
 
-	char* pcNext = NULL;
-	for (char* pcToken = strtok_s(pcCopy, " ", &pcNext);
-		pcToken;
-		pcToken = strtok_s(NULL, " ", &pcNext))
-	{
-		AddNode(AllocNode(pcToken));
-	}
+    const size_t size = strlen(pcList) + 1;
+    char* copy = new char[size];
+    strcpy_s(copy, size, pcList);
 
-	delete[] pcCopy;
+    char* context = NULL;
+    for (char* token = strtok_s(copy, " ", &context);
+         token != NULL;
+         token = strtok_s(NULL, " ", &context))
+    {
+        AddNode(AllocNode(token));
+    }
+
+    delete[] copy;
 }
 
-CLayerManager::PNODE CLayerManager::AllocNode(char* pcName)
+CLayerManager::PNODE CLayerManager::AllocNode(const char* pcName)
 {
-	PNODE node = new NODE;
-	ASSERT(node);
-
-	strcpy_s(node->token, pcName);
-	node->next = NULL;
-
-	return node;
+    PNODE node = new NODE;
+    strcpy_s(node->token, sizeof(node->token), pcName);
+    node->next = NULL;
+    return node;
 }
 
 void CLayerManager::AddNode(PNODE pNode)
 {
-	if (!mp_sListHead)
-	{
-		mp_sListHead = mp_sListTail = pNode;
-	}
-	else
-	{
-		mp_sListTail->next = pNode;
-		mp_sListTail = pNode;
-	}
+    if (pNode == NULL)
+        return;
+
+    if (mp_sListHead == NULL)
+        mp_sListHead = mp_sListTail = pNode;
+    else
+    {
+        mp_sListTail->next = pNode;
+        mp_sListTail = pNode;
+    }
 }
 
+void CLayerManager::ClearNodes()
+{
+    while (mp_sListHead != NULL)
+    {
+        PNODE next = mp_sListHead->next;
+        delete mp_sListHead;
+        mp_sListHead = next;
+    }
+    mp_sListTail = NULL;
+}
 
 void CLayerManager::Push(CBaseLayer* pLayer)
 {
-	if (m_nTop >= MAX_LAYER_NUMBER)
-	{
-#ifdef _DEBUG
-		TRACE("The Stack is full.. so cannot run the push operation.. \n");
-#endif
-		return;
-	}
+    if (pLayer == NULL || m_nTop + 1 >= MAX_LAYER_NUMBER)
+        return;
 
-	mp_Stack[++m_nTop] = pLayer;
+    mp_Stack[++m_nTop] = pLayer;
 }
 
 CBaseLayer* CLayerManager::Pop()
 {
-	if (m_nTop < 0)
-	{
-#ifdef _DEBUG
-		TRACE("The Stack is empty.. so cannot run the pop operation.. \n");
-#endif
-		return NULL;
-	}
+    if (m_nTop < 0)
+        return NULL;
 
-	CBaseLayer* pLayer = mp_Stack[m_nTop];
-	mp_Stack[m_nTop] = NULL;
-	m_nTop--;
-
-	return pLayer;
+    CBaseLayer* layer = mp_Stack[m_nTop];
+    mp_Stack[m_nTop--] = NULL;
+    return layer;
 }
 
-CBaseLayer* CLayerManager::Top()
+CBaseLayer* CLayerManager::Top() const
 {
-	if (m_nTop < 0)
-	{
-#ifdef _DEBUG
-		TRACE("The Stack is empty.. so cannot run the top operation.. \n");
-#endif
-		return NULL;
-	}
-
-	return mp_Stack[m_nTop];
+    return (m_nTop < 0) ? NULL : mp_Stack[m_nTop];
 }
 
 void CLayerManager::LinkLayer(PNODE pNode)
 {
-	CBaseLayer* pLayer = NULL;
+    CBaseLayer* current = NULL;
 
-	while (pNode)
-	{
-		if (!pLayer)
-			pLayer = GetLayer(pNode->token);
-		else
-		{
-			if (*pNode->token == '(')
-				Push(pLayer);
-			else if (*pNode->token == ')')
-				Pop();
-			else
-			{
-				char cMode = *pNode->token;
-				char* pcName = pNode->token + 1;
+    while (pNode != NULL)
+    {
+        if (current == NULL)
+        {
+            current = GetLayer(pNode->token);
+        }
+        else if (pNode->token[0] == '(')
+        {
+            Push(current);
+        }
+        else if (pNode->token[0] == ')')
+        {
+            Pop();
+        }
+        else
+        {
+            const char mode = pNode->token[0];
+            CBaseLayer* next = GetLayer(pNode->token + 1);
+            CBaseLayer* top = Top();
 
-				pLayer = GetLayer(pcName);
+            if (next != NULL && top != NULL)
+            {
+                current = next;
+                switch (mode)
+                {
+                case '*': top->SetUpperUnderLayer(next); break;
+                case '+': top->SetUpperLayer(next); break;
+                case '-': top->SetUnderLayer(next); break;
+                default: break;
+                }
+            }
+        }
 
-				switch (cMode)
-				{
-				case '*': Top()->SetUpperUnderLayer(pLayer); break;
-				case '+': Top()->SetUpperLayer(pLayer); break;
-				case '-': Top()->SetUnderLayer(pLayer); break;
-				}
-			}
-		}
-
-		pNode = pNode->next;
-	}
+        pNode = pNode->next;
+    }
 }
 
 void CLayerManager::DeAllocLayer()
 {
-	for (int i = 0; i < this->m_nLayerCount; i++)
-		delete this->mp_aLayers[i];
+    // Destroy upper/application layers before their lower dependencies.
+    for (int i = m_nLayerCount - 1; i >= 0; --i)
+    {
+        if (m_abOwned[i] && mp_aLayers[i] != NULL)
+            delete mp_aLayers[i];
+
+        mp_aLayers[i] = NULL;
+        m_abOwned[i] = FALSE;
+    }
+    m_nLayerCount = 0;
 }
