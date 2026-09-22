@@ -19,7 +19,7 @@ public:
 	BOOL	Receive();
 	BOOL	Send(unsigned char* ppayload, int nlength);
 
-	CFileLayer(char* pName);
+	CFileLayer(const char* pName);
 	virtual ~CFileLayer();
 };
 

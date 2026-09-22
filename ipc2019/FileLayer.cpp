@@ -16,7 +16,7 @@ static char THIS_FILE[] = __FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-CFileLayer::CFileLayer(char* pName)
+CFileLayer::CFileLayer(const char* pName)
 	: CBaseLayer(pName)
 {
 }

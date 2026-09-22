@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "pch.h"  // /Yu 빌드에서 공통 선언을 먼저 불러온다.
 #include "stdafx.h"
 #include "ipc2019.h"
 #include "BaseLayer.h"
@@ -18,11 +19,12 @@ static char THIS_FILE[] = __FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-CBaseLayer::CBaseLayer(char* pName)
+CBaseLayer::CBaseLayer(const char* pName)
 	: m_nUpperLayerCount(0),
 	mp_UnderLayer(NULL)
 {
 	m_pLayerName = pName;
+	memset(mp_aUpperLayer, 0, sizeof(mp_aUpperLayer));
 }
 
 CBaseLayer::~CBaseLayer()
@@ -76,6 +78,9 @@ void CBaseLayer::SetUpperLayer(CBaseLayer* pUpperLayer)
 		return;
 	}
 
+	// 등록 가능한 개수를 넘으면 배열 밖에 포인터를 기록하지 않는다.
+	if (m_nUpperLayerCount >= MAX_LAYER_NUMBER) return;
+
 	// UpperLayer is added..
 	this->mp_aUpperLayer[m_nUpperLayerCount++] = pUpperLayer;
 }
@@ -97,7 +102,7 @@ void CBaseLayer::SetUnderLayer(CBaseLayer* pUnderLayer)
 CBaseLayer* CBaseLayer::GetUpperLayer(int nindex)
 {
 	if (nindex < 0 ||
-		nindex > m_nUpperLayerCount ||
+		nindex >= m_nUpperLayerCount ||
 		m_nUpperLayerCount < 0)
 	{
 #ifdef _DEBUG
@@ -122,7 +127,7 @@ CBaseLayer* CBaseLayer::GetUnderLayer()
 	return mp_UnderLayer;
 }
 
-char* CBaseLayer::GetLayerName()
+const char* CBaseLayer::GetLayerName()
 {
 	return m_pLayerName;
 }

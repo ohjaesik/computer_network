@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 // LayerManager.cpp: implementation of the CLayerManager class.
 //
 //////////////////////////////////////////////////////////////////////
@@ -31,8 +31,10 @@ CLayerManager::~CLayerManager()
 
 }
 
-void CLayerManager::AddLayer(CBaseLayer* pLayer)
+void CLayerManager::AddLayer(CBaseLayer* pLayer, BOOL owned)
 {
+	if (!pLayer || m_nLayerCount >= MAX_LAYER_NUMBER) return;
+	m_owned[m_nLayerCount] = owned;
 	mp_aLayers[m_nLayerCount++] = pLayer;
 }
 
@@ -41,7 +43,7 @@ CBaseLayer* CLayerManager::GetLayer(int nindex)
 	return mp_aLayers[nindex];
 }
 
-CBaseLayer* CLayerManager::GetLayer(char* pName)
+CBaseLayer* CLayerManager::GetLayer(const char* pName)
 {
 	for (int i = 0; i < m_nLayerCount; i++)
 	{
@@ -52,15 +54,22 @@ CBaseLayer* CLayerManager::GetLayer(char* pName)
 	return NULL;
 }
 
-void CLayerManager::ConnectLayers(char* pcList)
+void CLayerManager::ConnectLayers(const char* pcList)
 {
 	MakeList(pcList);
 	LinkLayer(mp_sListHead);
 	int arr;
 	arr = 3;
+	// 연결 문자열을 분석하며 만든 임시 노드만 해제한다. 실제 Layer는 유지한다.
+	while (mp_sListHead) {
+		PNODE next = mp_sListHead->next;
+		delete mp_sListHead;
+		mp_sListHead = next;
+	}
+	mp_sListTail = NULL;
 }
 
-void CLayerManager::MakeList(char* pcList)
+void CLayerManager::MakeList(const char* pcList)
 {
 	// strtok_s modifies its buffer, but pcList is a string literal.
 	size_t nSize = strlen(pcList) + 1;
@@ -105,7 +114,7 @@ void CLayerManager::AddNode(PNODE pNode)
 
 void CLayerManager::Push(CBaseLayer* pLayer)
 {
-	if (m_nTop >= MAX_LAYER_NUMBER)
+	if (m_nTop + 1 >= MAX_LAYER_NUMBER)
 	{
 #ifdef _DEBUG
 		TRACE("The Stack is full.. so cannot run the push operation.. \n");
@@ -182,6 +191,8 @@ void CLayerManager::LinkLayer(PNODE pNode)
 
 void CLayerManager::DeAllocLayer()
 {
+	// OnDestroy에서 먼저 작업 스레드를 끝낸 후, 소유 중인 Layer만 정리한다.
 	for (int i = 0; i < this->m_nLayerCount; i++)
-		delete this->mp_aLayers[i];
+		if (m_owned[i]) delete this->mp_aLayers[i];
+	m_nLayerCount = 0; // 반복 종료 호출에 의한 이중 해제 방지
 }

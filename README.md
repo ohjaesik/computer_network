@@ -1,2 +1,36 @@
 # computer_network
 # computer_network
+
+
+## Assignment 4 추가 구현
+
+기준은 `main`의 `6e14f209c826ffe8513e30daf913399284bc35b8`이다. 기존 코드와 주석을 유지하고 과제 4에 필요한 기능만 추가했다. 새 소스 파일은 `NILayer.h/.cpp`, `FileAppLayer.h/.cpp` 네 개다. 프로토콜 상수는 기존 `stdafx.h`에 추가했다.
+
+### 연결 구조와 주요 변경
+
+- 채팅: Dialog → ChatApp → Ethernet → NI. 수신은 역순이다.
+- 파일: Dialog → FileApp → Ethernet → NI. 수신 파일은 실행 파일 옆 `ReceivedFiles`에 저장한다.
+- `LayerManager::ConnectLayers()`로 연결한다. Dialog의 단일 Under 포인터는 ChatApp에 유지하고 FileApp의 Upper만 Dialog에 연결한다.
+- 채팅 EtherType은 `0x2080`, 파일은 `0x2090`이다. 채팅은 1496바이트, 파일 데이터는 1488바이트 단위로 분할한다.
+- 파일 정보/데이터/종료를 구분하고 수신한 실제 길이와 순번을 검증한다. 검증 완료 전에는 `.part`로 저장한다.
+- NI의 수신 스레드와 FileApp의 송신 스레드를 분리해 파일 전송 중에도 채팅을 처리한다. UI 출력은 `PostMessage`를 통해 UI 스레드에서 처리한다.
+- Packet32의 `OID_802_3_CURRENT_ADDRESS`로 어댑터의 실제 MAC을 조회한다.
+- 기존 FileLayer, IPC 등록 메시지, ACK와 타이머 코드는 보존했다. `USE_NPCAP_STACK=1`에서는 네트워크 경로를 실행하므로 IPC ACK 타이머가 시작되지 않는다. `0`이면 기존 IPC 경로를 선택한다.
+- 원본에 있던 잘린 `DoDataExchange` 선언과 잘못된 `_T` 호출, x64 타이머 매개변수 형식은 빌드에 필요한 범위에서 수정했다. 레이어 이름의 문자열 리터럴은 `const char*`로 받는다.
+
+### 빌드와 실행
+
+1. Windows에서 C++ MFC 개발 도구와 해당 프로젝트의 플랫폼 도구 집합을 설치한다.
+2. 과제 안내에 따라 Npcap을 WinPcap API 호환 모드로 설치하고 Npcap SDK를 준비한다.
+3. `NPCAP_SDK_DIR`을 SDK의 `Include`와 `Lib` 폴더가 있는 경로로 설정한다. Visual Studio를 다시 실행해야 새 환경 변수를 읽는다.
+4. `ipc2019/ipc2019.vcxproj`를 열고 빌드한다. Win32는 `Lib`, x64는 `Lib/x64`를 참조한다.
+5. 각 PC의 유선 어댑터를 선택하고 상대 MAC을 Destination에 입력한 뒤 설정을 누른다. 어댑터 선택 시 Source MAC을 바로 확인할 수 있다.
+6. 파일을 선택하고 전송한다. Wireshark 표시 필터는 `eth.type == 0x2080 || eth.type == 0x2090`이다.
+
+### 검증 범위와 제한
+
+기존 주석 353개 보존, 프로젝트 XML 및 리소스 ID 대조를 수행했다. Linux의 임시 Windows/MFC 대체 코드에서 실제 Base/LayerManager/Chat/Ethernet/FileApp 소스를 사용해 채팅 크기 10종, 파일 크기 10종(빈 파일 포함)의 왕복과 파일 바이트 일치, 주소/타입 필터, 잘린 프레임, 누락/잘못된 순서 및 레이어 연결을 검사했다. AddressSanitizer/UndefinedBehaviorSanitizer 검사도 통과했다. 환경상 LeakSanitizer는 실행하지 못했다. 이 검증은 실제 Windows/MFC 빌드나 Npcap 장치 통신 성공을 의미하지 않는다.
+
+과제에서 제시한 헤더 크기를 그대로 사용하므로 채팅 전체 길이는 65,535 UTF-8 바이트, 파일 전체 크기는 4 GiB 미만이다. 이를 넘어서는 크기까지 지원하려면 헤더 또는 별도 길이 협약을 확장해야 한다. 단편화는 MTU에 따른 한 프레임 크기 제한을 해소한다.
+
+ACK·재전송은 구현하지 않았다. 송신 완료는 로컬 프레임 송신 완료이며, 상대 파일 저장 완료는 수신 측 결과와 원본/수신 파일 해시로 확인해야 한다. 파일 전송은 수신 측에서 한 번에 한 송신자를 처리한다. 채팅 헤더에는 조각 순번이 없어 같은 길이의 중간 조각 순서 변경을 검출하지 못한다. 두 PC의 실제 송수신, 긴 채팅 중 파일 전송, 한글 표시와 Wireshark 캡처는 Windows 실습 환경에서 최종 확인해야 한다.
