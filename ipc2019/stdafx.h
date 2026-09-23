@@ -12,11 +12,18 @@
 
 #define VC_EXTRALEAN		// Exclude rarely-used stuff from Windows headers
 
+// MFC가 Windows 헤더를 먼저 준비하게 한다. 구버전 Winsock.h의 자동 포함은
+// 막아 두어, afxwin.h 다음에 Winsock2.h를 포함해도 소켓 선언이 충돌하지 않게 한다.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #ifndef NOMINMAX
 #define NOMINMAX              // std::min/max와 Windows 매크로의 이름 충돌 방지
 #endif
-#include <WinSock2.h>         // pcap보다 먼저 포함하여 Winsock 선언 충돌 방지
+// Winsock2.h도 내부에서 Windows.h를 포함하므로 MFC보다 먼저 포함하면 안 된다.
 #include <afxwin.h>         // MFC core and standard components
+#include <WinSock2.h>         // pcap보다 먼저 포함하여 Winsock 선언 충돌 방지
 #include <afxext.h>         // MFC extensions
 #include <afxdisp.h>        // MFC Automation classes
 #include <afxdtctl.h>		// MFC support for Internet Explorer 4 Common Controls
@@ -73,4 +80,3 @@
 // Microsoft Visual C++ will insert additional declarations immediately before the previous line.
 
 #endif // !defined(AFX_STDAFX_H__119ECB1B_6E70_4662_A2A9_A20B5201CA81__INCLUDED_)
-P
