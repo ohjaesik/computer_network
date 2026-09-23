@@ -83,8 +83,10 @@ BOOL CNILayer::OpenAdapter(int index)
 BOOL CNILayer::QueryMac(const CStringA& name)
 {
 	LPADAPTER adapter = PacketOpenAdapter(const_cast<char*>(static_cast<LPCSTR>(name)));
-	if (!adapter || adapter->hFile == INVALID_HANDLE_VALUE) {
-		if (adapter) PacketCloseAdapter(adapter);
+	// PacketOpenAdapter는 열기에 실패하면 NULL을 반환하고 내부 자원을 정리한다.
+	// ADAPTER의 hFile은 SDK 내부 전용 멤버이므로 직접 검사하지 않는다(C4996).
+	// 열기 성공 뒤 MAC 조회의 성공 여부는 아래 PacketRequest 반환값으로 확인한다.
+	if (adapter == NULL) {
 		m_error = _T("Packet32 어댑터 열기 실패");
 		return FALSE;
 	}
