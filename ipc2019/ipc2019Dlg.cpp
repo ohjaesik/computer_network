@@ -187,11 +187,21 @@ BOOL Cipc2019Dlg::OnInitDialog()
 	// MFC 편집창의 기본 입력 제한 때문에 MTU 초과 단편화를 시험하지 못하는 일을 막는다.
 	((CEdit*)GetDlgItem(IDC_EDIT_MSG))->SetLimitText(CHAT_MAX_MESSAGE_SIZE);
 	if (m_NI->LoadAdapters()) {
-		for (int i = 0; i < m_NI->GetAdapterCount(); ++i)
-			m_AdapterCombo.AddString(m_NI->GetAdapterName(i));
+		// 오른쪽 설정 열은 좁게 유지하되, 목록을 펼쳤을 때는 긴 장치 설명도 읽을 수 있게 한다.
+		// 고정 픽셀 값 대신 실제 컨트롤 폰트로 측정해 Windows 배율에 맞는 펼침 폭을 구한다.
+		CClientDC adapterDC(&m_AdapterCombo);
+		CFont* previousFont = adapterDC.SelectObject(m_AdapterCombo.GetFont());
+		int dropWidth = 0;
+		for (int i = 0; i < m_NI->GetAdapterCount(); ++i) {
+			CString description = m_NI->GetAdapterName(i);
+			m_AdapterCombo.AddString(description);
+			dropWidth = (std::max)(dropWidth, static_cast<int>(adapterDC.GetTextExtent(description).cx));
+		}
+		adapterDC.SelectObject(previousFont);
+		m_AdapterCombo.SetDroppedWidth(dropWidth + 2 * GetSystemMetrics(SM_CXVSCROLL));
 		m_AdapterCombo.SetCurSel(0);
 		OnAdapterChanged(); // 목적지 설정 전에도 자신의 MAC을 볼 수 있다.
-	} else SetDlgItemText(IDC_STATIC_FILE_STATUS, m_NI->GetError());
+	} else SetDlgItemText(IDC_STATIC_NETWORK_STATUS, m_NI->GetError());
 #else
 	// 기존 IPC 모드에서는 네트워크/파일 전송용 컨트롤을 사용하지 않는다.
 	GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(FALSE);
@@ -515,14 +525,16 @@ void Cipc2019Dlg::OnBnClickedCheckToall()
 void Cipc2019Dlg::OnAdapterChanged()
 {
 	if (!m_NI || m_bSendReady) return;
+	// 어댑터 선택의 결과는 오른쪽 네트워크 상태에만 표시한다.
+	// 아래 파일 상태 컨트롤은 OnFileStatus()가 송수신 진행률과 결과를 표시할 때 사용한다.
 	if (!m_NI->OpenAdapter(m_AdapterCombo.GetCurSel())) {
-		SetDlgItemText(IDC_STATIC_FILE_STATUS, m_NI->GetError());
+		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, m_NI->GetError());
 		m_sourceMac.Empty();
 	} else {
 		unsigned char address[ETHERNET_ADDRESS_SIZE];
 		m_NI->GetMacAddress(address);
 		m_sourceMac = FormatMac(address);
-		SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("상대 PC의 MAC 주소를 입력하고 설정을 누르십시오."));
+		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("상대 PC의 MAC 주소를 입력하고 설정을 누르십시오."));
 	}
 	// UpdateData(FALSE)로 사용자가 입력 중인 목적지/채팅까지 덮어쓰지 않는다.
 	SetDlgItemText(IDC_EDIT_SRC, m_sourceMac);
@@ -540,7 +552,7 @@ void Cipc2019Dlg::SetNetworkAddress()
 		m_bSendReady = FALSE;
 		SetDlgState(IPC_ADDR_RESET);
 		SetDlgState(IPC_INITIALIZING);
-		SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("네트워크 설정 해제"));
+		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("네트워크 설정 해제"));
 		return;
 	}
 	UpdateData(TRUE);
@@ -561,7 +573,7 @@ void Cipc2019Dlg::SetNetworkAddress()
 	m_bSendReady = TRUE;
 	SetDlgState(IPC_ADDR_SET);
 	SetDlgState(IPC_READYTOSEND);
-	SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("채팅/파일 송수신 준비 완료"));
+	SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("채팅/파일 송수신 준비 완료"));
 	UpdateData(FALSE);
 }
 
