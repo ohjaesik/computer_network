@@ -1,4 +1,4 @@
-// EthernetLayer.h: interface for the CEthernetLayer class.
+﻿// EthernetLayer.h: interface for the CEthernetLayer class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ public:
 	unsigned char* GetDestinAddress();
 	unsigned char* GetSourceAddress();
 
-	CEthernetLayer(char* pName);
+	CEthernetLayer(const char* pName);
 	virtual ~CEthernetLayer();
 
 	typedef struct _ETHERNET_HEADER {
@@ -37,6 +37,12 @@ public:
 		unsigned char	enet_data[ETHER_MAX_DATA_SIZE]; // frame data
 
 	} ETHERNET_HEADER, * PETHERNET_HEADER;
+
+public:
+	// 기존 두 인자 Send/한 인자 Receive는 IPC 호환용으로 유지한다.
+	// 새 호출은 타입과 캡처 길이를 명시해 ChatApp/FileApp을 구분한다.
+	BOOL Send(unsigned char* payload, int length, unsigned short type);
+	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
 
 protected:
 	ETHERNET_HEADER	m_sHeader;

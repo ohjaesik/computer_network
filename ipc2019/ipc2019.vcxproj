@@ -74,6 +74,21 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- 과제 4: Npcap SDK는 저장소에 복사하지 않고 기존 프로젝트에서 경로를 참조한다.
+       NPCAP_SDK_DIR은 Include와 Lib 폴더를 포함한 SDK 최상위 폴더이다. -->
+  <PropertyGroup>
+    <NpcapLibDir>$(NPCAP_SDK_DIR)\Lib</NpcapLibDir>
+    <NpcapLibDir Condition="'$(Platform)'=='x64'">$(NPCAP_SDK_DIR)\Lib\x64</NpcapLibDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(NPCAP_SDK_DIR)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(NpcapLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wpcap.lib;Packet.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
@@ -186,6 +201,8 @@
     <ClInclude Include="BaseLayer.h" />
     <ClInclude Include="ChatAppLayer.h" />
     <ClInclude Include="FileLayer.h" />
+    <ClInclude Include="NILayer.h" />
+    <ClInclude Include="FileAppLayer.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="ipc2019.h" />
     <ClInclude Include="ipc2019Dlg.h" />
@@ -201,6 +218,8 @@
     <ClCompile Include="ChatAppLayer.cpp" />
     <ClCompile Include="EthernetLayer.cpp" />
     <ClCompile Include="FileLayer.cpp" />
+    <ClCompile Include="NILayer.cpp" />
+    <ClCompile Include="FileAppLayer.cpp" />
     <ClCompile Include="ipc2019.cpp" />
     <ClCompile Include="ipc2019Dlg.cpp" />
     <ClCompile Include="LayerManager.cpp" />

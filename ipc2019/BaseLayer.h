@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 // BaseLayer.h: interface for the CBaseLayer class.
 //
 //////////////////////////////////////////////////////////////////////
@@ -16,7 +16,7 @@
 class CBaseLayer
 {
 public:
-	char* GetLayerName();
+	const char* GetLayerName();
 
 	CBaseLayer* GetUnderLayer();
 	CBaseLayer* GetUpperLayer(int nindex);
@@ -25,7 +25,7 @@ public:
 	void			SetUnderLayer(CBaseLayer* pUnderLayer = NULL);
 	void			SetUpperLayer(CBaseLayer* pUpperLayer = NULL);
 
-	CBaseLayer(char* pName = NULL);
+	CBaseLayer(const char* pName = NULL);
 	virtual ~CBaseLayer();
 
 	// param : unsigned char*	- the data of the upperlayer
@@ -35,8 +35,22 @@ public:
 	virtual	BOOL	Receive(unsigned char* ppayload) { return FALSE; }
 	virtual	BOOL	Receive() { return FALSE; }
 
+	// [과제 4] 기존 Receive(pointer)는 유지한다. 실제 캡처 길이를 함께 받아야
+	// 짧거나 잘린 프레임을 검사할 수 있다. source는 조각의 송신자 확인에 쓴다.
+	virtual BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL)
+	{
+		return Receive(payload);
+	}
+
+	// 채팅/파일이 동시에 Ethernet을 사용하므로 EtherType을 공유 멤버에 쓰지
+	// 않고 전송 호출마다 전달한다. 기존 두 인자 Send는 그대로 사용 가능하다.
+	virtual BOOL Send(unsigned char* payload, int length, unsigned short type)
+	{
+		return Send(payload, length);
+	}
+
 protected:
-	char* m_pLayerName;
+	const char* m_pLayerName;
 	CBaseLayer* mp_UnderLayer;							// UnderLayer pointer
 	CBaseLayer* mp_aUpperLayer[MAX_LAYER_NUMBER];		// UpperLayer pointer
 	int				m_nUpperLayerCount;						// UpperLayer Count

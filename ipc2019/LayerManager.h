@@ -1,4 +1,4 @@
-// LayerManager.h: interface for the CLayerManager class.
+﻿// LayerManager.h: interface for the CLayerManager class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -25,10 +25,10 @@ private:
 public:
 	void			DeAllocLayer();
 
-	void			ConnectLayers(char* pcList);
-	CBaseLayer* GetLayer(char* pName);
+	void			ConnectLayers(const char* pcList);
+	CBaseLayer* GetLayer(const char* pName);
 	CBaseLayer* GetLayer(int nindex);
-	void			AddLayer(CBaseLayer* pLayer);
+	void			AddLayer(CBaseLayer* pLayer, BOOL owned = TRUE);
 
 	CLayerManager();
 	virtual ~CLayerManager();
@@ -50,10 +50,11 @@ private:
 
 	inline void		AddNode(PNODE pNode);
 	inline PNODE	AllocNode(char* pcName);
-	void			MakeList(char* pcList);
+	void			MakeList(const char* pcList);
 
 	int				m_nLayerCount;
 	CBaseLayer* mp_aLayers[MAX_LAYER_NUMBER];
+	BOOL m_owned[MAX_LAYER_NUMBER]; // Dialog(this)는 스택 객체이므로 delete하지 않는다.
 
 };
 

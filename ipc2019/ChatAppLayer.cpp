@@ -16,7 +16,7 @@ static char THIS_FILE[] = __FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-CChatAppLayer::CChatAppLayer(char* pName)
+CChatAppLayer::CChatAppLayer(const char* pName)
 	: CBaseLayer(pName),
 	mp_Dlg(NULL)
 {
@@ -59,6 +59,10 @@ unsigned int CChatAppLayer::GetDestinAddress()
 
 BOOL CChatAppLayer::Send(unsigned char* ppayload, int nlength)
 {
+#if USE_NPCAP_STACK
+	// 과제 4에서는 단편화 후 Ethernet으로 전달한다. 아래 IPC 구현/주석은 보존한다.
+	return SendNetwork(ppayload, nlength);
+#endif
 	m_sHeader.app_length = (unsigned short)nlength;
 
 	BOOL bSuccess = FALSE;
@@ -112,3 +116,77 @@ BOOL CChatAppLayer::Receive(unsigned char* ppayload)
 }
 
 
+
+
+// [과제 4 추가] 한 번의 Send 호출에서 모든 조각의 totlen은 동일하다.
+// 작은 메시지는 FIRST 하나로 끝내고, 큰 메시지는 FIRST-(MIDDLE...)-LAST로 보낸다.
+// 2바이트 totlen에 담을 수 없는 크기는 잘라서 보내지 않고 명시적으로 실패한다.
+BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
+{
+	static_assert(sizeof(NETWORK_CHAT_HEADER) == ETHER_MAX_DATA_SIZE, "Chat MTU");
+	if (!payload || length <= 0 || length > CHAT_MAX_MESSAGE_SIZE || !mp_UnderLayer)
+		return FALSE;
+
+	for (int offset = 0; offset < length; offset += CHAT_APP_DATA_SIZE) {
+		NETWORK_CHAT_HEADER packet = {};
+		int count = (std::min)(CHAT_APP_DATA_SIZE, length - offset);
+		packet.capp_totlen = htons(static_cast<uint16_t>(length));
+		packet.capp_type = offset == 0 ? CHAT_FRAGMENT_FIRST :
+			(offset + count == length ? CHAT_FRAGMENT_LAST : CHAT_FRAGMENT_MIDDLE);
+		memcpy(packet.capp_data, payload + offset, count);
+		if (!mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&packet),
+			CHAT_APP_HEADER_SIZE + count, ETHERNET_TYPE_CHAT)) return FALSE;
+	}
+	return TRUE;
+}
+
+void CChatAppLayer::ResetNetworkReceive()
+{
+	m_received.clear();
+	m_totalLength = 0;
+	memset(m_receiveSource, 0, sizeof(m_receiveSource));
+}
+
+// NI 수신 스레드에서만 호출된다. 최종 조각까지 확인하기 전에는 UI에 전달하지 않는다.
+// Ethernet 최소 프레임의 padding은 totlen을 기준으로 제외하여 메시지에 섞이지 않는다.
+BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
+{
+	if (!payload || !source || length < CHAT_APP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE)
+		return FALSE;
+	NETWORK_CHAT_HEADER* packet = reinterpret_cast<NETWORK_CHAT_HEADER*>(payload);
+	unsigned int total = ntohs(packet->capp_totlen);
+	unsigned char type = packet->capp_type;
+	if (!total || type > CHAT_FRAGMENT_LAST) return FALSE;
+
+	if (type == CHAT_FRAGMENT_FIRST) {
+		ResetNetworkReceive();
+		m_totalLength = total;
+		m_received.reserve(total); // 첫 조각의 전체 길이로 재조립 버퍼 확보
+		memcpy(m_receiveSource, source, sizeof(m_receiveSource));
+	} else {
+		// 다른 송신자의 조각이 진행 중인 메시지에 섞이지 않도록 확인한다.
+		if (memcmp(m_receiveSource, source, sizeof(m_receiveSource)) != 0) return FALSE;
+		if (!m_totalLength || total != m_totalLength) {
+			ResetNetworkReceive();
+			return FALSE;
+		}
+	}
+	int remaining = static_cast<int>(m_totalLength - m_received.size());
+	int count = (std::min)(CHAT_APP_DATA_SIZE, remaining);
+	bool final = count == remaining;
+	// 첫 조각 이외에는 남은 데이터가 MTU 이하면 LAST, 그보다 크면 MIDDLE이어야 한다.
+	if (length - CHAT_APP_HEADER_SIZE < count ||
+		(type != CHAT_FRAGMENT_FIRST && type != (final ? CHAT_FRAGMENT_LAST : CHAT_FRAGMENT_MIDDLE))) {
+		ResetNetworkReceive();
+		return FALSE;
+	}
+	m_received.insert(m_received.end(), packet->capp_data, packet->capp_data + count);
+	if (!final) return TRUE;
+
+	// UI는 수신 버퍼의 포인터를 보관하지 않고 자신의 메시지 큐용 복사본을 만든다.
+	CBaseLayer* upper = GetUpperLayer(0);
+	BOOL result = upper && upper->Receive(m_received.data(),
+		static_cast<int>(m_received.size()), m_receiveSource);
+	ResetNetworkReceive();
+	return result;
+}

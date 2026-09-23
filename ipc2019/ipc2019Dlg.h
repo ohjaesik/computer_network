@@ -7,6 +7,8 @@
 #include "LayerManager.h"	// Added by ClassView
 #include "ChatAppLayer.h"	// Added by ClassView
 #include "EthernetLayer.h"	// Added by ClassView
+#include "NILayer.h"
+#include "FileAppLayer.h"
 #include "FileLayer.h"	// Added by ClassView
 // Cipc2019Dlg 대화 상자
 class Cipc2019Dlg : public CDialogEx, public CBaseLayer
@@ -46,7 +48,7 @@ public:
 //	CString m_stMessage;
 //	CListBox m_ListChat;
 	
-	afx_msg void OnTimer(UINT nIDEvent);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
 
 public:
@@ -90,4 +92,26 @@ public:
 	CString m_stMessage;
 	CListBox m_ListChat;
 	afx_msg void OnBnClickedCheckToall();
+
+	// [과제 4 추가] NI에서 받은 채팅은 PostMessage로 UI 스레드에 복사 전달한다.
+	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
+	afx_msg void OnDestroy();
+	afx_msg void OnAdapterChanged();
+	afx_msg void OnFileBrowse();
+	afx_msg void OnFileSend();
+	afx_msg LRESULT OnChatReceived(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnFileStatus(WPARAM wParam, LPARAM lParam);
+
+private:
+	CNILayer* m_NI = NULL;
+	CEthernetLayer* m_Ethernet = NULL;
+	CFileAppLayer* m_FileApp = NULL;
+	CComboBox m_AdapterCombo;
+	CProgressCtrl m_FileProgress;
+	CString m_sourceMac, m_destinationMac, m_filePath;
+	void SetNetworkAddress();
+	void SetNetworkDlgState(int state);
+	void SendNetworkChat();
+	static BOOL ParseMac(const CString& text, unsigned char* address);
+	static CString FormatMac(const unsigned char* address);
 };
