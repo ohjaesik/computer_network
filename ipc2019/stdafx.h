@@ -77,6 +77,13 @@
 #define WM_CHAT_RECEIVED             (WM_APP + 101)
 #define WM_FILE_STATUS              (WM_APP + 102)
 
+// 파일 UI의 주기 갱신은 기존 IPC ACK 타이머(1번)와 다른 ID를 사용한다.
+// 1%보다 적게 진행해도 상태를 전달하고, 데이터가 오지 않는 동안에도 UI는 갱신한다.
+#define FILE_UI_TIMER_ID             0xA401
+#define FILE_UI_REFRESH_MS           250
+#define FILE_RATE_SAMPLE_MS          1000
+#define FILE_PROGRESS_STALL_MS       5000
+
 // Microsoft Visual C++ will insert additional declarations immediately before the previous line.
 
 #endif // !defined(AFX_STDAFX_H__119ECB1B_6E70_4662_A2A9_A20B5201CA81__INCLUDED_)

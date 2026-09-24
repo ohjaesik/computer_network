@@ -90,7 +90,8 @@ public:
 	UINT m_unSrcAddr;
 	UINT m_unDstAddr;
 	CString m_stMessage;
-	CListBox m_ListChat;
+    // 기존 컨트롤 ID/변수명은 유지하며 자동 줄바꿈이 되는 읽기 전용 편집창을 사용한다.
+    CEdit m_ListChat;
 	afx_msg void OnBnClickedCheckToall();
 
 	// [과제 4 추가] NI에서 받은 채팅은 PostMessage로 UI 스레드에 복사 전달한다.
@@ -99,6 +100,7 @@ public:
 	afx_msg void OnAdapterChanged();
 	afx_msg void OnFileBrowse();
 	afx_msg void OnFileSend();
+	afx_msg void OnOpenReceivedFolder();
 	afx_msg LRESULT OnChatReceived(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnFileStatus(WPARAM wParam, LPARAM lParam);
 
@@ -108,6 +110,20 @@ private:
 	CFileAppLayer* m_FileApp = NULL;
 	CComboBox m_AdapterCombo;
 	CProgressCtrl m_FileProgress;
+    CProgressCtrl m_FileReceiveProgress;
+    // UI 스레드만 사용하는 표시 상태다. 두 방향의 속도 샘플을 따로 보관한다.
+    struct FILE_VIEW {
+        FILE_STATUS latest = {};
+        BOOL hasStatus = FALSE;
+        ULONGLONG sampleAtMs = 0;
+        uint64_t sampleBytes = 0;
+        double bytesPerSecond = 0;
+    };
+    FILE_VIEW m_sendView, m_receiveView;
+    void AppendChatMessage(const CString& message);
+    void RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int statusId);
+    static CString FormatFileSize(uint64_t bytes);
+    static CString FormatDuration(ULONGLONG milliseconds);
 	CString m_sourceMac, m_destinationMac, m_filePath;
 	void SetNetworkAddress();
 	void SetNetworkDlgState(int state);
