@@ -15,6 +15,17 @@ struct FILE_APP_HEADER {
 #pragma pack(pop)
 static_assert(sizeof(FILE_APP_HEADER) == ETHER_MAX_DATA_SIZE, "File MTU");
 
+// 각 작업 스레드가 자신의 방향에 대해서만 갱신하는 누적 계수다.
+// UI는 이 객체를 직접 읽지 않고 FILE_STATUS에 복사된 값만 사용한다.
+struct FILE_PROGRESS {
+    CString fileName;
+    uint64_t totalBytes = 0;
+    uint64_t completedBytes = 0;
+    ULONGLONG startedAtMs = 0;
+    ULONGLONG lastProgressAtMs = 0;
+    ULONGLONG lastReportAtMs = 0;
+};
+
 // 스레드가 UI를 직접 수정하지 않고 PostMessage로 소유권을 넘기는 상태 정보.
 // 수신/송신을 구분해야 파일 수신 완료가 아직 송신 중인 버튼을 활성화하지 않는다.
 struct FILE_STATUS {
@@ -22,6 +33,8 @@ struct FILE_STATUS {
 	int percent;
 	BOOL sending;
 	BOOL finished;
+    FILE_PROGRESS progress;  // 송신 성공 바이트 / 실제 파일 기록 바이트
+    ULONGLONG reportedAtMs;  // 완료 뒤 경과 시간을 고정할 때도 사용한다.
 };
 
 class CFileAppLayer : public CBaseLayer
@@ -32,6 +45,7 @@ public:
 	void SetNotifyWindow(HWND window) { m_window = window; }
 	BOOL StartSendFile(const CString& path);
 	BOOL IsSending() const;
+	static CString GetReceiveDirectory();
 	void StopTransfer();
 	void ResetReceive();
 	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
@@ -43,6 +57,8 @@ private:
 	volatile LONG m_sending;
 	volatile LONG m_cancel;
 	CString m_sendPath;
+    FILE_PROGRESS m_sendProgress;
+    FILE_PROGRESS m_receiveProgress;
 
 	CFile m_receiveFile;
 	BOOL m_receiving;

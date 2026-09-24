@@ -63,6 +63,13 @@ UINT __cdecl CFileAppLayer::FileTransferThread(LPVOID parameter)
 
 BOOL CFileAppLayer::SendFile(CString& result)
 {
+    // 이전 작업의 크기/시간을 재사용하지 않는다. 열기 실패도 새 작업의 결과로 표시한다.
+    m_sendProgress = FILE_PROGRESS();
+    m_sendProgress.startedAtMs = m_sendProgress.lastProgressAtMs = GetTickCount64();
+    int slash = (std::max)(m_sendPath.ReverseFind(_T('\\')), m_sendPath.ReverseFind(_T('/')));
+    CString name = m_sendPath.Mid(slash + 1);
+    m_sendProgress.fileName = name;
+    Notify(_T("파일 송신 준비 중"), 0, TRUE, FALSE);
 	CFile file;
 	CFileException error;
 	if (!file.Open(m_sendPath, CFile::modeRead | CFile::shareDenyWrite, &error)) {
@@ -77,8 +84,7 @@ BOOL CFileAppLayer::SendFile(CString& result)
 			return FALSE;
 		}
 		uint32_t total = static_cast<uint32_t>(size);
-		int slash = (std::max)(m_sendPath.ReverseFind(_T('\\')), m_sendPath.ReverseFind(_T('/')));
-		CString name = m_sendPath.Mid(slash + 1);
+		m_sendProgress.totalBytes = total;
 		CStringA utf8(CT2A(name, CP_UTF8));
 		if (utf8.IsEmpty() || utf8.GetLength() + 1 > FILE_APP_DATA_SIZE) {
 			result = _T("전송 파일명이 너무 깁니다."); return FALSE;
@@ -103,9 +109,18 @@ BOOL CFileAppLayer::SendFile(CString& result)
 				result = _T("파일 데이터 프레임 송신 실패"); return FALSE;
 			}
 			sent += count;
+            // pcap_sendpacket이 성공한 데이터 양을 센다. 상대 저장량을 의미하지 않는다.
+            m_sendProgress.completedBytes = sent;
+            m_sendProgress.lastProgressAtMs = GetTickCount64();
 			int percent = total ? static_cast<int>(sent * 100 / total) : 100;
 			// 패킷마다 알림을 쌓지 않고 표시할 정수 진행률이 바뀔 때만 알린다.
-			if (percent != previous) { Notify(_T("파일 송신 중"), percent, TRUE, FALSE); previous = percent; }
+            // [표시 확장] 기존 정수 진행률 변화 외에 250ms 경과도 알림 조건으로 추가한다.
+            // 큰 파일에서 1%가 오르기 전까지 화면이 멈춘 것처럼 보이는 일을 막는다.
+            if (percent != previous || m_sendProgress.lastProgressAtMs -
+                m_sendProgress.lastReportAtMs >= FILE_UI_REFRESH_MS) {
+                Notify(_T("파일 송신 중"), percent, TRUE, FALSE);
+                previous = percent;
+            }
 			Sleep(1); // 수신/채팅에도 실행 기회를 주고 연속 주입 속도를 낮춘다. ACK 대기는 아니다.
 		}
 		file.Close();
@@ -164,11 +179,15 @@ BOOL CFileAppLayer::ReceiveInfo(FILE_APP_HEADER* packet, int length, const unsig
 	for (int i = 0; i < name.GetLength(); ++i) if (name[i] < 32) return FALSE;
 	if (name.IsEmpty() || name.Right(1) == _T(".") || name.Right(1) == _T(" ")) return FALSE;
 	ResetReceive();
-	TCHAR module[MAX_PATH] = {};
-	DWORD count = GetModuleFileName(NULL, module, MAX_PATH);
-	if (!count || count >= MAX_PATH) return FALSE;
-	CString directory(module);
-	directory = directory.Left(directory.ReverseFind(_T('\\'))) + _T("\\ReceivedFiles");
+    m_receiveProgress = FILE_PROGRESS();
+    m_receiveProgress.fileName = name;
+    m_receiveProgress.totalBytes = ntohl(packet->fapp_totlen);
+    m_receiveProgress.startedAtMs = m_receiveProgress.lastProgressAtMs = GetTickCount64();
+    Notify(_T("파일 수신 준비 중"), 0, FALSE, FALSE);
+    CString directory = GetReceiveDirectory();
+    if (directory.IsEmpty()) {
+        Notify(_T("수신 폴더 경로 확인 실패"), 0, FALSE, TRUE); return FALSE;
+    }
 	if (!CreateDirectory(directory, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
 		Notify(_T("수신 폴더 생성 실패"), 0, FALSE, TRUE); return FALSE;
 	}
@@ -213,9 +232,13 @@ BOOL CFileAppLayer::ReceiveData(FILE_APP_HEADER* packet, int length)
 		Notify(_T("수신 파일 기록 실패"), 0, FALSE, TRUE); return FALSE;
 	}
 	m_received += count;
+    // 파일 공간을 미리 확보했으므로 파일 크기가 아닌 Write 성공 바이트를 측정한다.
+    m_receiveProgress.completedBytes = m_received;
+    m_receiveProgress.lastProgressAtMs = GetTickCount64();
 	++m_nextSequence;
 	int percent = static_cast<int>(m_received * 100 / m_total);
-	if (percent != m_lastPercent) {
+    if (percent != m_lastPercent || m_receiveProgress.lastProgressAtMs -
+        m_receiveProgress.lastReportAtMs >= FILE_UI_REFRESH_MS) {
 		Notify(_T("파일 수신 중"), percent, FALSE, FALSE);
 		m_lastPercent = percent;
 	}
@@ -262,6 +285,22 @@ void CFileAppLayer::Notify(const CString& message, int percent, BOOL sending, BO
 	FILE_STATUS* status = new FILE_STATUS;
 	status->message = message; status->percent = percent;
 	status->sending = sending; status->finished = finished;
+    FILE_PROGRESS& progress = sending ? m_sendProgress : m_receiveProgress;
+    progress.lastReportAtMs = GetTickCount64();
+    status->progress = progress;
+    status->reportedAtMs = progress.lastReportAtMs;
 	// 성공 시 UI 핸들러가 delete한다. 전달 실패 시 여기서 해제해 누수를 방지한다.
 	if (!::PostMessage(m_window, WM_FILE_STATUS, 0, reinterpret_cast<LPARAM>(status))) delete status;
+}
+
+// 저장 코드와 "수신 폴더 열기" 버튼이 같은 경로를 사용하도록 한 곳에서 계산한다.
+CString CFileAppLayer::GetReceiveDirectory()
+{
+    TCHAR module[MAX_PATH] = {};
+    DWORD count = GetModuleFileName(NULL, module, MAX_PATH);
+    if (!count || count >= MAX_PATH) return CString();
+    CString directory(module);
+    int slash = directory.ReverseFind(_T('\\'));
+    if (slash < 0) return CString();
+    return directory.Left(slash) + _T("\\ReceivedFiles");
 }

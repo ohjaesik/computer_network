@@ -3,6 +3,7 @@
 //
 
 #include "pch.h"
+#include <shellapi.h>  // 수신 파일이 저장된 폴더를 탐색기로 연다.
 #include "framework.h"
 #include "ipc2019.h"
 #include "ipc2019Dlg.h"
@@ -108,6 +109,7 @@ void Cipc2019Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_FILE_PATH, m_filePath);
 	DDX_Control(pDX, IDC_COMBO_ADAPTER, m_AdapterCombo);
 	DDX_Control(pDX, IDC_PROGRESS_FILE, m_FileProgress);
+    DDX_Control(pDX, IDC_PROGRESS_FILE_RECEIVE, m_FileReceiveProgress);
 #else
 	DDX_Text(pDX, IDC_EDIT_SRC, m_unSrcAddr);
 	DDX_Text(pDX, IDC_EDIT_DST, m_unDstAddr);
@@ -133,6 +135,7 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
 	ON_CBN_SELCHANGE(IDC_COMBO_ADAPTER, &Cipc2019Dlg::OnAdapterChanged)
 	ON_BN_CLICKED(IDC_BUTTON_FILE_BROWSE, &Cipc2019Dlg::OnFileBrowse)
 	ON_BN_CLICKED(IDC_BUTTON_FILE_SEND, &Cipc2019Dlg::OnFileSend)
+    ON_BN_CLICKED(IDC_BUTTON_RECEIVED_FOLDER, &Cipc2019Dlg::OnOpenReceivedFolder)
 	ON_MESSAGE(WM_CHAT_RECEIVED, &Cipc2019Dlg::OnChatReceived)
 	ON_MESSAGE(WM_FILE_STATUS, &Cipc2019Dlg::OnFileStatus)
 
@@ -180,9 +183,15 @@ BOOL Cipc2019Dlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	SetRegstryMessage();
+    // 0은 OS가 지원하는 최대 텍스트 길이로 제한을 확장한다. 긴 단편 재조립 메시지도 표시한다.
+    m_ListChat.SetLimitText(0);
 #if USE_NPCAP_STACK
 	m_FileApp->SetNotifyWindow(m_hWnd);
 	m_FileProgress.SetRange(0, 100);
+    m_FileReceiveProgress.SetRange(0, 100);
+    SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("보낼 파일을 선택하세요."));
+    SetDlgItemText(IDC_EDIT_FILE_RECEIVE_STATUS, _T("수신 대기 중"));
+    SetTimer(FILE_UI_TIMER_ID, FILE_UI_REFRESH_MS, NULL);
 	((CEdit*)GetDlgItem(IDC_EDIT_SRC))->SetReadOnly(TRUE);
 	// MFC 편집창의 기본 입력 제한 때문에 MTU 초과 단편화를 시험하지 못하는 일을 막는다.
 	((CEdit*)GetDlgItem(IDC_EDIT_MSG))->SetLimitText(CHAT_MAX_MESSAGE_SIZE);
@@ -314,7 +323,7 @@ void Cipc2019Dlg::SendData()
 	else
 		MsgHeader.Format(_T("[%d:%d] "), m_unSrcAddr, m_unDstAddr);
 
-	m_ListChat.AddString(MsgHeader + m_stMessage);
+	AppendChatMessage(MsgHeader + m_stMessage);
 
 	//////////////////////// fill the blank ///////////////////////////////
 	// 입력한 메시지를 파일로 저장
@@ -342,7 +351,7 @@ BOOL Cipc2019Dlg::Receive(unsigned char* ppayload)
 		///////////////////////////////////////////////////////////////////////
 	}
 
-	m_ListChat.AddString((LPCTSTR)ppayload);
+	AppendChatMessage((LPCTSTR)ppayload);
 	return TRUE;
 }
 
@@ -467,8 +476,17 @@ LRESULT Cipc2019Dlg::OnRegAckMsg(WPARAM wParam, LPARAM lParam)
 
 void Cipc2019Dlg::OnTimer(UINT_PTR nIDEvent)
 {
+#if USE_NPCAP_STACK
+    // 새 UI 타이머를 기존 ACK 타임아웃 처리와 분리한다. 패킷이 없어도 대기 시간이 증가한다.
+    if (nIDEvent == FILE_UI_TIMER_ID) {
+        RefreshFileView(m_sendView, m_FileProgress, IDC_STATIC_FILE_STATUS);
+        RefreshFileView(m_receiveView, m_FileReceiveProgress, IDC_EDIT_FILE_RECEIVE_STATUS);
+        return;
+    }
+#endif
+    if (nIDEvent != 1) { CDialogEx::OnTimer(nIDEvent); return; }
 	// TODO: Add your message handler code here and/or call default
-	m_ListChat.AddString(_T(">> The last message was time-out.."));
+	AppendChatMessage(_T(">> The last message was time-out.."));
 	m_nAckReady = -1;
 	KillTimer(1);
 
@@ -549,6 +567,17 @@ void Cipc2019Dlg::SetNetworkAddress()
 		m_NI->CloseAdapter();
 		m_ChatApp->ResetNetworkReceive();
 		m_FileApp->ResetReceive();
+        // NI를 종료한 뒤 큐의 마지막 상태부터 처리해 진행 중 수신이 영원히 남지 않게 한다.
+        MSG pending;
+        while (::PeekMessage(&pending, m_hWnd, WM_FILE_STATUS, WM_FILE_STATUS, PM_REMOVE))
+            OnFileStatus(pending.wParam, pending.lParam);
+        if (m_receiveView.hasStatus && !m_receiveView.latest.finished) {
+            m_receiveView.latest.finished = TRUE;
+            m_receiveView.latest.percent = 0;
+            m_receiveView.latest.message = _T("설정 해제로 파일 수신 중단");
+            m_receiveView.latest.reportedAtMs = GetTickCount64();
+            RefreshFileView(m_receiveView, m_FileReceiveProgress, IDC_EDIT_FILE_RECEIVE_STATUS);
+        }
 		m_bSendReady = FALSE;
 		SetDlgState(IPC_ADDR_RESET);
 		SetDlgState(IPC_INITIALIZING);
@@ -612,9 +641,9 @@ void Cipc2019Dlg::SendNetworkChat()
 		AfxMessageBox(_T("채팅 프레임 송신 실패")); return;
 	}
 	CString line;
-	line.Format(_T("[%s -> %s] %s"), static_cast<LPCTSTR>(m_sourceMac),
+	line.Format(_T("[송신 %s -> %s]\r\n%s"), static_cast<LPCTSTR>(m_sourceMac),
 		static_cast<LPCTSTR>(m_destinationMac), static_cast<LPCTSTR>(m_stMessage));
-	m_ListChat.AddString(line); // 이 표시는 로컬 송신 표시이며 상대 수신 ACK가 아니다.
+	AppendChatMessage(line); // 이 표시는 로컬 송신 표시이며 상대 수신 ACK가 아니다.
 	m_stMessage.Empty();
 	SetDlgItemText(IDC_EDIT_MSG, m_stMessage);
 	GetDlgItem(IDC_EDIT_MSG)->SetFocus();
@@ -627,8 +656,9 @@ BOOL Cipc2019Dlg::Receive(unsigned char* payload, int length, const unsigned cha
 	CString message(CA2T(utf8, CP_UTF8));
 	CString sender = FormatMac(source);
 	CString* line = new CString;
-	line->Format(_T("[%s] %s"), static_cast<LPCTSTR>(sender), static_cast<LPCTSTR>(message));
+	line->Format(_T("[수신 %s]\r\n%s"), static_cast<LPCTSTR>(sender), static_cast<LPCTSTR>(message));
 	// worker에서 CListBox를 직접 조작하지 않는다. UI가 이 문자열을 출력하고 해제한다.
+    // [표시 변경] 현재는 CEdit을 사용하며 UI 스레드로 넘기는 원칙은 동일하다.
 	if (!PostMessage(WM_CHAT_RECEIVED, 0, reinterpret_cast<LPARAM>(line))) { delete line; return FALSE; }
 	return TRUE;
 }
@@ -636,7 +666,7 @@ BOOL Cipc2019Dlg::Receive(unsigned char* payload, int length, const unsigned cha
 LRESULT Cipc2019Dlg::OnChatReceived(WPARAM wParam, LPARAM lParam)
 {
 	CString* line = reinterpret_cast<CString*>(lParam);
-	if (line) { m_ListChat.AddString(*line); delete line; }
+	if (line) { AppendChatMessage(*line); delete line; }
 	return 0;
 }
 
@@ -655,8 +685,11 @@ void Cipc2019Dlg::OnFileSend()
 	if (m_filePath.IsEmpty()) { AfxMessageBox(_T("전송할 파일을 선택하십시오.")); return; }
 	GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(FALSE);
 	m_FileProgress.SetPos(0);
+    m_sendView = FILE_VIEW();
+    SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("파일 송신 준비 중"));
 	if (!m_FileApp->StartSendFile(m_filePath)) {
 		GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(TRUE);
+        SetDlgItemText(IDC_STATIC_FILE_STATUS, _T("파일 송신 시작 실패"));
 		AfxMessageBox(_T("파일 전송 스레드를 시작하지 못했습니다."));
 	}
 }
@@ -665,8 +698,18 @@ LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
 {
 	FILE_STATUS* status = reinterpret_cast<FILE_STATUS*>(lParam);
 	if (!status) return 0;
-	m_FileProgress.SetPos(status->percent);
-	SetDlgItemText(IDC_STATIC_FILE_STATUS, status->message);
+    FILE_VIEW& view = status->sending ? m_sendView : m_receiveView;
+    if (!view.hasStatus || view.latest.progress.startedAtMs != status->progress.startedAtMs ||
+        (view.latest.finished && !status->finished)) {
+        view = FILE_VIEW();
+        view.sampleAtMs = status->progress.startedAtMs;
+    }
+    view.latest = *status; // worker가 넘긴 스냅샷을 복사하고 원본은 아래에서 해제한다.
+    view.hasStatus = TRUE;
+    RefreshFileView(view, status->sending ? m_FileProgress : m_FileReceiveProgress,
+        status->sending ? IDC_STATIC_FILE_STATUS : IDC_EDIT_FILE_RECEIVE_STATUS);
+    // 완료 경로/오류 문구도 줄바꿈 채팅 영역에 남겨 상태창이 바뀐 뒤 다시 확인할 수 있게 한다.
+    if (status->finished) AppendChatMessage(status->message);
 	if (status->sending && status->finished)
 		GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(m_bSendReady);
 	delete status;
@@ -675,6 +718,7 @@ LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
 
 void Cipc2019Dlg::OnDestroy()
 {
+    KillTimer(FILE_UI_TIMER_ID);
 	EndofProcess();
 	// worker를 모두 종료했으므로 이제 큐에 새 알림은 들어오지 않는다.
 	// 아직 UI가 처리하지 못한 heap 데이터도 직접 해제하여 종료 시 누수를 막는다.
@@ -708,4 +752,101 @@ CString Cipc2019Dlg::FormatMac(const unsigned char* address)
 	text.Format(_T("%02X-%02X-%02X-%02X-%02X-%02X"),
 		address[0], address[1], address[2], address[3], address[4], address[5]);
 	return text;
+}
+
+// 수평 스크롤 없는 ES_MULTILINE 편집창이 창 너비에 맞춰 줄을 바꾼다.
+// 읽기 전용이어도 ReplaceSel로 프로그램의 로그를 추가할 수 있고 사용자는 복사할 수 있다.
+void Cipc2019Dlg::AppendChatMessage(const CString& message)
+{
+    CString text(message);
+    text.Replace(_T("\r\n"), _T("\n"));
+    text.Replace(_T("\r"), _T("\n"));
+    text.Replace(_T("\n"), _T("\r\n"));
+    text += _T("\r\n\r\n");
+    int end = m_ListChat.GetWindowTextLength();
+    m_ListChat.SetSel(end, end);
+    m_ListChat.ReplaceSel(text, FALSE);
+    m_ListChat.LineScroll(m_ListChat.GetLineCount());
+}
+
+CString Cipc2019Dlg::FormatFileSize(uint64_t bytes)
+{
+    CString text;
+    if (bytes < 1024) text.Format(_T("%llu B"), static_cast<unsigned long long>(bytes));
+    else if (bytes < 1024 * 1024) text.Format(_T("%.1f KiB"), bytes / 1024.0);
+    else if (bytes < 1024ULL * 1024 * 1024) text.Format(_T("%.2f MiB"), bytes / (1024.0 * 1024));
+    else text.Format(_T("%.2f GiB"), bytes / (1024.0 * 1024 * 1024));
+    return text;
+}
+
+CString Cipc2019Dlg::FormatDuration(ULONGLONG milliseconds)
+{
+    unsigned long long seconds = milliseconds / 1000;
+    CString text;
+    text.Format(_T("%llu:%02llu"), seconds / 60, seconds % 60);
+    return text;
+}
+
+void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int statusId)
+{
+    if (!view.hasStatus) return;
+    const FILE_STATUS& status = view.latest;
+    const FILE_PROGRESS& count = status.progress;
+    ULONGLONG now = status.finished ? status.reportedAtMs : GetTickCount64();
+    ULONGLONG elapsed = now >= count.startedAtMs ? now - count.startedAtMs : 0;
+    ULONGLONG idle = now >= count.lastProgressAtMs ? now - count.lastProgressAtMs : 0;
+    ULONGLONG sampleTime = now >= view.sampleAtMs ? now - view.sampleAtMs : 0;
+    // 최근 약 1초의 실제 바이트 증가량으로 계산한다. 정체되면 다음 샘플은 0 B/s가 된다.
+    if (sampleTime >= FILE_RATE_SAMPLE_MS) {
+        uint64_t delta = count.completedBytes >= view.sampleBytes ? count.completedBytes - view.sampleBytes : 0;
+        view.bytesPerSecond = static_cast<double>(delta) * 1000.0 / sampleTime;
+        view.sampleAtMs = now;
+        view.sampleBytes = count.completedBytes;
+    }
+    // 완료/오류 뒤에는 시간과 속도가 계속 변하지 않도록 해당 작업의 평균을 보여준다.
+    double rate = status.finished ? (elapsed ? count.completedBytes * 1000.0 / elapsed : 0) : view.bytesPerSecond;
+    double percent = count.totalBytes ? 100.0 * count.completedBytes / count.totalBytes :
+        (status.finished && status.percent == 100 ? 100.0 : 0.0);
+    progress.SetPos(static_cast<int>((std::min)(100.0, percent)));
+    CString state = status.message;
+    CString remaining;
+    if (!status.finished && count.completedBytes == count.totalBytes && count.totalBytes) {
+        // 100%는 데이터 바이트 기준이다. END 검증/이름 변경 전에는 수신 완료로 표시하지 않는다.
+        state = status.sending ? _T("데이터 송신 완료 · 마무리 중") : _T("데이터 수신 완료 · 종료 확인 대기");
+        remaining = _T("마무리 대기");
+    } else if (status.finished) remaining = _T("작업 종료");
+    else if (idle >= FILE_PROGRESS_STALL_MS || rate <= 0) remaining = _T("남은 시간 계산 대기");
+    else {
+        uint64_t left = count.totalBytes > count.completedBytes ? count.totalBytes - count.completedBytes : 0;
+        ULONGLONG seconds = static_cast<ULONGLONG>(left / rate);
+        if (seconds * rate < left) ++seconds;
+        remaining = _T("약 ") + FormatDuration(seconds * 1000) + _T(" 남음");
+    }
+    if (!status.finished && idle >= FILE_PROGRESS_STALL_MS) {
+        // ACK나 실패 판정이 아니다. 마지막 바이트 처리 이후의 정체 시간만 알려준다.
+        CString waiting;
+        waiting.Format(status.sending ? _T(" · %llu초 동안 추가 송신 없음") : _T(" · %llu초 동안 추가 수신 없음"),
+            static_cast<unsigned long long>(idle / 1000));
+        state += waiting;
+    }
+    CString text;
+    text.Format(_T("%s\r\n%s\r\n%.1f%% · %s / %s\r\n%s %s/s · 경과 %s\r\n%s"),
+        static_cast<LPCTSTR>(state), static_cast<LPCTSTR>(count.fileName), percent,
+        static_cast<LPCTSTR>(FormatFileSize(count.completedBytes)), static_cast<LPCTSTR>(FormatFileSize(count.totalBytes)),
+        status.finished ? _T("평균") : _T("속도"), static_cast<LPCTSTR>(FormatFileSize(static_cast<uint64_t>(rate))),
+        static_cast<LPCTSTR>(FormatDuration(elapsed)), static_cast<LPCTSTR>(remaining));
+    CString displayed;
+    GetDlgItemText(statusId, displayed);
+    // 완료 후에는 같은 내용을 반복 설정하지 않아 사용자가 긴 경로를 스크롤/복사할 수 있다.
+    if (displayed != text) SetDlgItemText(statusId, text);
+}
+
+void Cipc2019Dlg::OnOpenReceivedFolder()
+{
+    CString directory = CFileAppLayer::GetReceiveDirectory();
+    if (directory.IsEmpty() || (!CreateDirectory(directory, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)) {
+        AfxMessageBox(_T("수신 폴더를 준비하지 못했습니다.")); return;
+    }
+    HINSTANCE opened = ShellExecute(m_hWnd, _T("open"), directory, NULL, NULL, SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(opened) <= 32) AfxMessageBox(_T("수신 폴더를 열지 못했습니다."));
 }
