@@ -31,6 +31,7 @@ CLayerManager::~CLayerManager()
 
 }
 
+// [assignment4] NULL과 등록 한도를 검사한 뒤 객체 포인터와 삭제 책임(owned)을 같은 인덱스에 저장한다.
 void CLayerManager::AddLayer(CBaseLayer* pLayer, BOOL owned)
 {
 	if (!pLayer || m_nLayerCount >= MAX_LAYER_NUMBER) return;
@@ -54,13 +55,14 @@ CBaseLayer* CLayerManager::GetLayer(const char* pName)
 	return NULL;
 }
 
+// [assignment4] 연결 문자열을 토큰 목록으로 분리하고 LinkLayer로 각 계층의 상하위 관계를 구성한다.
 void CLayerManager::ConnectLayers(const char* pcList)
 {
 	MakeList(pcList);
 	LinkLayer(mp_sListHead);
 	int arr;
 	arr = 3;
-	// 연결 문자열을 분석하며 만든 임시 노드만 해제한다. 실제 Layer는 유지한다.
+	// [assignment4] 연결 문자열을 분석하며 만든 임시 노드만 해제한다. 실제 Layer는 유지한다.
 	while (mp_sListHead) {
 		PNODE next = mp_sListHead->next;
 		delete mp_sListHead;
@@ -69,6 +71,7 @@ void CLayerManager::ConnectLayers(const char* pcList)
 	mp_sListTail = NULL;
 }
 
+// [assignment4] 읽기 전용 연결 문자열을 별도 버퍼에 복사한 뒤 공백으로 분리하여 연결용 토큰을 만든다.
 void CLayerManager::MakeList(const char* pcList)
 {
 	// strtok_s modifies its buffer, but pcList is a string literal.
@@ -114,6 +117,7 @@ void CLayerManager::AddNode(PNODE pNode)
 
 void CLayerManager::Push(CBaseLayer* pLayer)
 {
+	// [assignment4] 다음 Push가 사용할 위치를 먼저 검사하여 스택 배열 경계를 넘지 않게 한다.
 	if (m_nTop + 1 >= MAX_LAYER_NUMBER)
 	{
 #ifdef _DEBUG
@@ -155,6 +159,8 @@ CBaseLayer* CLayerManager::Top()
 	return mp_Stack[m_nTop];
 }
 
+// [assignment4] 괄호로 현재 부모 계층을 저장하고, *는 양방향, +는 상위, -는 하위 포인터를 연결한다.
+// [assignment4] FileApp의 +ChatDlg 연결은 Dialog의 기존 하위 계층(ChatApp) 포인터를 유지한다.
 void CLayerManager::LinkLayer(PNODE pNode)
 {
 	CBaseLayer* pLayer = NULL;
@@ -191,8 +197,8 @@ void CLayerManager::LinkLayer(PNODE pNode)
 
 void CLayerManager::DeAllocLayer()
 {
-	// OnDestroy에서 먼저 작업 스레드를 끝낸 후, 소유 중인 Layer만 정리한다.
+	// [assignment4] OnDestroy에서 먼저 작업 스레드를 끝낸 후, 소유 중인 Layer만 정리한다.
 	for (int i = 0; i < this->m_nLayerCount; i++)
 		if (m_owned[i]) delete this->mp_aLayers[i];
-	m_nLayerCount = 0; // 반복 종료 호출에 의한 이중 해제 방지
+	m_nLayerCount = 0; // [assignment4] 반복 종료 호출에 의한 이중 해제 방지
 }

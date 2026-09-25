@@ -25,9 +25,11 @@ private:
 public:
 	void			DeAllocLayer();
 
+	// [assignment4] 연결 문자열로 NI–Ethernet–ChatApp/FileApp–Dialog의 상하위 포인터를 설정한다.
 	void			ConnectLayers(const char* pcList);
 	CBaseLayer* GetLayer(const char* pName);
 	CBaseLayer* GetLayer(int nindex);
+	// [assignment4] 계층 등록 시 소유권도 저장한다. Dialog는 owned=FALSE로 등록하여 직접 삭제하지 않는다.
 	void			AddLayer(CBaseLayer* pLayer, BOOL owned = TRUE);
 
 	CLayerManager();
@@ -54,7 +56,7 @@ private:
 
 	int				m_nLayerCount;
 	CBaseLayer* mp_aLayers[MAX_LAYER_NUMBER];
-	BOOL m_owned[MAX_LAYER_NUMBER]; // Dialog(this)는 스택 객체이므로 delete하지 않는다.
+	BOOL m_owned[MAX_LAYER_NUMBER]; // [assignment4] Dialog(this)는 스택 객체이므로 delete하지 않는다.
 
 };
 

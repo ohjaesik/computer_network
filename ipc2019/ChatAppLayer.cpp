@@ -1,4 +1,4 @@
-// ChatAppLayer.cpp: implementation of the CChatAppLayer class.
+ï»¿// ChatAppLayer.cpp: implementation of the CChatAppLayer class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -60,20 +60,20 @@ unsigned int CChatAppLayer::GetDestinAddress()
 BOOL CChatAppLayer::Send(unsigned char* ppayload, int nlength)
 {
 #if USE_NPCAP_STACK
-	// °úÁ¦ 4¿¡¼­´Â ´ÜÆíÈ­ ÈÄ EthernetÀ¸·Î Àü´ŞÇÑ´Ù. ¾Æ·¡ IPC ±¸Çö/ÁÖ¼®Àº º¸Á¸ÇÑ´Ù.
+	// [assignment4] ë„¤íŠ¸ì›Œí¬ ëª¨ë“œì—ì„œëŠ” SendNetworkë¡œ UTF-8 ë©”ì‹œì§€ë¥¼ ë‹¨í¸í™”í•˜ì—¬ Ethernetì— ì „ë‹¬í•œë‹¤.
 	return SendNetwork(ppayload, nlength);
 #endif
 	m_sHeader.app_length = (unsigned short)nlength;
 
 	BOOL bSuccess = FALSE;
 	//////////////////////// fill the blank ///////////////////////////////
-		// ¸Ş¸ğ¸® º¹»ç·Î µ¥ÀÌÅÍ¸¦ header¿¡ ÀúÀå
-		// ChatApp ·¹ÀÌ¾îÀÇ Çì´õ¿¡ µ¥ÀÌÅÍ¿Í ±× ±æÀÌ¸¦ ÀúÀåÇÑ´Ù.
+		// ë©”ëª¨ë¦¬ ë³µì‚¬ë¡œ ë°ì´í„°ë¥¼ headerì— ì €ì¥
+		// ChatApp ë ˆì´ì–´ì˜ í—¤ë”ì— ë°ì´í„°ì™€ ê·¸ ê¸¸ì´ë¥¼ ì €ì¥í•œë‹¤.
 	memcpy(m_sHeader.app_data, ppayload, nlength > APP_DATA_SIZE ? APP_DATA_SIZE : nlength);
 
-	// ChatApp ·¹ÀÌ¾îÀÇ ¹Ø¿¡ ·¹ÀÌ¾îÀÎ Ethertnet ·¹ÀÌ¾î¿¡ µ¥ÀÌÅÍ¸¦ ³Ñ°ÜÁØ´Ù.
-	// ¸Ş·Î¸® ÂüÁ¶·Î ChatAppÀÇ(Çì´õ + µ¥ÀÌÅÍ)¿Í (µ¥ÀÌÅÍ ±æÀÌ+Çì´õ±æÀÌ)¸¦
-	// ´ÙÀ½ °èÃşÀÇ data·Î ³Ñ°ÜÁØ´Ù.
+	// ê¸°ì¡´ IPC ì†¡ì‹ : ChatApp í—¤ë”ì™€ ë°ì´í„°ë¥¼ í•˜ìœ„ Ethernet ê³„ì¸µì— ì „ë‹¬í•œë‹¤.
+	// ChatApp êµ¬ì¡°ì²´ì˜ ì‹œì‘ ì£¼ì†Œì™€ í—¤ë”ë¥¼ í¬í•¨í•œ ì „ì†¡ ê¸¸ì´ë¥¼
+	// ë‹¤ìŒ ê³„ì¸µì˜ dataë¡œ ë„˜ê²¨ì¤€ë‹¤.
 	bSuccess = mp_UnderLayer->Send((unsigned char*)&m_sHeader, nlength + APP_HEADER_SIZE);
 	///////////////////////////////////////////////////////////////////////
 	return bSuccess;
@@ -81,32 +81,32 @@ BOOL CChatAppLayer::Send(unsigned char* ppayload, int nlength)
 
 BOOL CChatAppLayer::Receive(unsigned char* ppayload)
 {
-	// ppayload¸¦ ChatApp Çì´õ ±¸Á¶Ã¼·Î ³Ö´Â´Ù.
+	// ì „ë‹¬ë°›ì€ ë°”ì´íŠ¸ ë°°ì—´ì„ ê¸°ì¡´ IPC ChatApp í—¤ë” êµ¬ì¡°ì²´ë¡œ í•´ì„í•œë‹¤.
 	PCHAT_APP_HEADER app_hdr = (PCHAT_APP_HEADER)ppayload;
 
-	// º¸³»´Â ÂÊ ÁÖ¼Ò¿Í ¹Ş´Â ÂÊÀÇ ÁÖ¼Ò°¡ ÀÏÄ¡ÇÑ °æ¿ì ¸Ş½ÃÁö¸¦ º¸³½´Ù.
+	// ëª©ì ì§€ê°€ ìì‹ ì˜ ì£¼ì†Œì´ê±°ë‚˜ ë‹¤ë¥¸ í”„ë¡œì„¸ìŠ¤ê°€ ë³´ë‚¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸ì¸ ê²½ìš° ìˆ˜ì‹ í•œë‹¤.
 	if (app_hdr->app_dstaddr == m_sHeader.app_srcaddr ||
 		(app_hdr->app_srcaddr != m_sHeader.app_srcaddr &&
 			app_hdr->app_dstaddr == (unsigned int)0xff))
 	{
 		//////////////////////// fill the blank ///////////////////////////////
-				// ¹Ø °èÃş¿¡¼­ ³Ñ°Ü¹ŞÀº ppayload¸¦ ºĞ¼®ÇÏ¿© ChatDlg °èÃşÀ¸·Î ³Ñ°ÜÁØ´Ù.
-		unsigned char GetBuff[APP_DATA_SIZE]; // 32ºñÆ® Å©±âÀÇ App Data Size¸¸Å­ÀÇ GetBuff¸¦ ¼±¾ğÇÑ´Ù.
-		memset(GetBuff, '\0', APP_DATA_SIZE);  // GetBuff¸¦ ÃÊ±âÈ­ÇØÁØ´Ù.
+				// ë°‘ ê³„ì¸µì—ì„œ ë„˜ê²¨ë°›ì€ ppayloadë¥¼ ë¶„ì„í•˜ì—¬ ChatDlg ê³„ì¸µìœ¼ë¡œ ë„˜ê²¨ì¤€ë‹¤.
+		unsigned char GetBuff[APP_DATA_SIZE]; // APP_DATA_SIZEë°”ì´íŠ¸ì˜ ë©”ì‹œì§€ ë³µì‚¬ ë²„í¼ë¥¼ í™•ë³´í•œë‹¤.
+		memset(GetBuff, '\0', APP_DATA_SIZE);  // GetBuffë¥¼ ì´ˆê¸°í™”í•´ì¤€ë‹¤.
 
-		// ¹ŞÀº µ¥ÀÌÅÍÀÎ App Header¸¦ ºĞ¼®ÇÏ¿©, GetBuff¿¡ data ±æÀÌ¿Í APP_DATA_SIZE ±æÀÌ¿Í ºñ±³ÇÏ¿© Á¤ÇÑ ±æÀÌ¸¸Å­
-		// data¸¦ ÀúÀåÇÑ´Ù.
+		// ë°›ì€ ë°ì´í„°ì¸ App Headerë¥¼ ë¶„ì„í•˜ì—¬, GetBuffì— data ê¸¸ì´ì™€ APP_DATA_SIZE ê¸¸ì´ì™€ ë¹„êµí•˜ì—¬ ì •í•œ ê¸¸ì´ë§Œí¼
+		// dataë¥¼ ì €ì¥í•œë‹¤.
 		memcpy(GetBuff, app_hdr->app_data, app_hdr->app_length > APP_DATA_SIZE ? APP_DATA_SIZE : app_hdr->app_length);
 
 		CString Msg;
-		// App Header¸¦ ºĞ¼®ÇÏ¿©, ¸®½ºÆ® Ã¢¿¡ »Ñ·ÁÁÙ ³»¿ëÀÇ ¸Ş½ÃÁö¸¦ ±¸¼ºÇÑ´Ù.
-		// º¸³»´Â ÂÊ ¶Ç´Â ¹Ş´Â ÂÊ°ú GetBuff¿¡ ÀúÀåµÈ ¸Ş½ÃÁö ³»¿ëÀ» ÇÕÄ£´Ù.
+		// ì†¡ìˆ˜ì‹  ì£¼ì†Œì™€ ë©”ì‹œì§€ë¥¼ ì¡°í•©í•˜ì—¬ Dialogì— ì „ë‹¬í•  ì¶œë ¥ ë¬¸ìì—´ì„ ë§Œë“ ë‹¤.
+		// ë³´ë‚´ëŠ” ìª½ ë˜ëŠ” ë°›ëŠ” ìª½ê³¼ GetBuffì— ì €ì¥ëœ ë©”ì‹œì§€ ë‚´ìš©ì„ í•©ì¹œë‹¤.
 		if (app_hdr->app_dstaddr == (unsigned int)0xff)
 			Msg.Format(_T("[%d:BROADCAST] %s"), app_hdr->app_srcaddr, (char*)GetBuff);
 		else
 			Msg.Format(_T("[%d:%d] %s"), app_hdr->app_srcaddr, app_hdr->app_dstaddr, (char*)GetBuff);
 
-		// À§¿¡¼­ ¸¸µé¾îÁø ¸Ş½ÃÁö Æ÷¸ËÀ» ChatDlg·Î ³Ñ°ÜÁØ´Ù.
+		// ìœ„ì—ì„œ ë§Œë“¤ì–´ì§„ ë©”ì‹œì§€ í¬ë§·ì„ ChatDlgë¡œ ë„˜ê²¨ì¤€ë‹¤.
 		mp_aUpperLayer[0]->Receive((unsigned char*)Msg.GetBuffer(0));
 		///////////////////////////////////////////////////////////////////////
 		return TRUE;
@@ -118,9 +118,10 @@ BOOL CChatAppLayer::Receive(unsigned char* ppayload)
 
 
 
-// [°úÁ¦ 4 Ãß°¡] ÇÑ ¹øÀÇ Send È£Ãâ¿¡¼­ ¸ğµç Á¶°¢ÀÇ totlenÀº µ¿ÀÏÇÏ´Ù.
-// ÀÛÀº ¸Ş½ÃÁö´Â FIRST ÇÏ³ª·Î ³¡³»°í, Å« ¸Ş½ÃÁö´Â FIRST-(MIDDLE...)-LAST·Î º¸³½´Ù.
-// 2¹ÙÀÌÆ® totlen¿¡ ´ãÀ» ¼ö ¾ø´Â Å©±â´Â Àß¶ó¼­ º¸³»Áö ¾Ê°í ¸í½ÃÀûÀ¸·Î ½ÇÆĞÇÑ´Ù.
+// [assignment4] UTF-8 ë©”ì‹œì§€ë¥¼ ìµœëŒ€ 1496ë°”ì´íŠ¸ì”© ë‚˜ëˆ„ê³  4ë°”ì´íŠ¸ ì±„íŒ… í—¤ë”ë¥¼ ë¶™ì—¬ ì†¡ì‹ í•œë‹¤.
+// [assignment4] ëª¨ë“  ì¡°ê°ì˜ totlenì—ëŠ” ì›ë³¸ ë©”ì‹œì§€ì˜ ì „ì²´ ë°”ì´íŠ¸ ê¸¸ì´ë¥¼ ê¸°ë¡í•œë‹¤.
+// [assignment4] ì‘ì€ ë©”ì‹œì§€ëŠ” FIRST í•˜ë‚˜ë¡œ ëë‚´ê³ , í° ë©”ì‹œì§€ëŠ” FIRST-(MIDDLE...)-LASTë¡œ ë³´ë‚¸ë‹¤.
+// [assignment4] 2ë°”ì´íŠ¸ totlenì— ë‹´ì„ ìˆ˜ ì—†ëŠ” í¬ê¸°ëŠ” ì˜ë¼ì„œ ë³´ë‚´ì§€ ì•Šê³  ëª…ì‹œì ìœ¼ë¡œ ì‹¤íŒ¨í•œë‹¤.
 BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
 {
 	static_assert(sizeof(NETWORK_CHAT_HEADER) == ETHER_MAX_DATA_SIZE, "Chat MTU");
@@ -140,6 +141,7 @@ BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
 	return TRUE;
 }
 
+// [assignment4] ì¬ì¡°ë¦½ ì¤‘ì´ë˜ ë°”ì´íŠ¸, ì „ì²´ ê¸¸ì´, ì†¡ì‹ ì MACì„ ì´ˆê¸°í™”í•œë‹¤. ìƒˆ ë©”ì‹œì§€Â·ì˜¤ë¥˜Â·ì£¼ì†Œ ì¬ì„¤ì •ì— ì‚¬ìš©í•œë‹¤.
 void CChatAppLayer::ResetNetworkReceive()
 {
 	m_received.clear();
@@ -147,13 +149,14 @@ void CChatAppLayer::ResetNetworkReceive()
 	memset(m_receiveSource, 0, sizeof(m_receiveSource));
 }
 
-// NI ¼ö½Å ½º·¹µå¿¡¼­¸¸ È£ÃâµÈ´Ù. ÃÖÁ¾ Á¶°¢±îÁö È®ÀÎÇÏ±â Àü¿¡´Â UI¿¡ Àü´ŞÇÏÁö ¾Ê´Â´Ù.
-// Ethernet ÃÖ¼Ò ÇÁ·¹ÀÓÀÇ paddingÀº totlenÀ» ±âÁØÀ¸·Î Á¦¿ÜÇÏ¿© ¸Ş½ÃÁö¿¡ ¼¯ÀÌÁö ¾Ê´Â´Ù.
+// [assignment4] NI ìˆ˜ì‹  ìŠ¤ë ˆë“œì—ì„œë§Œ í˜¸ì¶œëœë‹¤. ìµœì¢… ì¡°ê°ê¹Œì§€ í™•ì¸í•˜ê¸° ì „ì—ëŠ” UIì— ì „ë‹¬í•˜ì§€ ì•ŠëŠ”ë‹¤.
+// [assignment4] Ethernet ìµœì†Œ í”„ë ˆì„ì˜ paddingì€ totlenì„ ê¸°ì¤€ìœ¼ë¡œ ì œì™¸í•˜ì—¬ ë©”ì‹œì§€ì— ì„ì´ì§€ ì•ŠëŠ”ë‹¤.
 BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
 	if (!payload || !source || length < CHAT_APP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE)
 		return FALSE;
 	NETWORK_CHAT_HEADER* packet = reinterpret_cast<NETWORK_CHAT_HEADER*>(payload);
+	// [assignment4] ë„¤íŠ¸ì›Œí¬ ë°”ì´íŠ¸ ìˆœì„œì˜ ì „ì²´ ê¸¸ì´ë¥¼ ë³µì›í•˜ê³  FIRST/MIDDLE/LAST ìœ í˜•ì„ ê²€ì‚¬í•œë‹¤.
 	unsigned int total = ntohs(packet->capp_totlen);
 	unsigned char type = packet->capp_type;
 	if (!total || type > CHAT_FRAGMENT_LAST) return FALSE;
@@ -161,10 +164,10 @@ BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned c
 	if (type == CHAT_FRAGMENT_FIRST) {
 		ResetNetworkReceive();
 		m_totalLength = total;
-		m_received.reserve(total); // Ã¹ Á¶°¢ÀÇ ÀüÃ¼ ±æÀÌ·Î ÀçÁ¶¸³ ¹öÆÛ È®º¸
+		m_received.reserve(total); // [assignment4] ì²« ì¡°ê°ì˜ ì „ì²´ ê¸¸ì´ë¡œ ì¬ì¡°ë¦½ ë²„í¼ í™•ë³´
 		memcpy(m_receiveSource, source, sizeof(m_receiveSource));
 	} else {
-		// ´Ù¸¥ ¼Û½ÅÀÚÀÇ Á¶°¢ÀÌ ÁøÇà ÁßÀÎ ¸Ş½ÃÁö¿¡ ¼¯ÀÌÁö ¾Êµµ·Ï È®ÀÎÇÑ´Ù.
+		// [assignment4] ë‹¤ë¥¸ ì†¡ì‹ ìì˜ ì¡°ê°ì´ ì§„í–‰ ì¤‘ì¸ ë©”ì‹œì§€ì— ì„ì´ì§€ ì•Šë„ë¡ í™•ì¸í•œë‹¤.
 		if (memcmp(m_receiveSource, source, sizeof(m_receiveSource)) != 0) return FALSE;
 		if (!m_totalLength || total != m_totalLength) {
 			ResetNetworkReceive();
@@ -174,16 +177,17 @@ BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned c
 	int remaining = static_cast<int>(m_totalLength - m_received.size());
 	int count = (std::min)(CHAT_APP_DATA_SIZE, remaining);
 	bool final = count == remaining;
-	// Ã¹ Á¶°¢ ÀÌ¿Ü¿¡´Â ³²Àº µ¥ÀÌÅÍ°¡ MTU ÀÌÇÏ¸é LAST, ±×º¸´Ù Å©¸é MIDDLEÀÌ¾î¾ß ÇÑ´Ù.
+	// [assignment4] ì²« ì¡°ê° ì´í›„ì—ëŠ” ë‚¨ì€ ë°ì´í„°ê°€ 1496ë°”ì´íŠ¸ ì´í•˜ë©´ LAST, ì´ˆê³¼í•˜ë©´ MIDDLEì´ì–´ì•¼ í•œë‹¤.
 	if (length - CHAT_APP_HEADER_SIZE < count ||
 		(type != CHAT_FRAGMENT_FIRST && type != (final ? CHAT_FRAGMENT_LAST : CHAT_FRAGMENT_MIDDLE))) {
 		ResetNetworkReceive();
 		return FALSE;
 	}
+	// [assignment4] í˜„ì¬ ì¡°ê°ì˜ ìœ íš¨ ë°”ì´íŠ¸ë§Œ ì´ì–´ ë¶™ì´ê³  ì „ì²´ ë©”ì‹œì§€ê°€ ëª¨ì´ë©´ ìƒìœ„ Dialogë¡œ í•œ ë²ˆ ì „ë‹¬í•œë‹¤.
 	m_received.insert(m_received.end(), packet->capp_data, packet->capp_data + count);
 	if (!final) return TRUE;
 
-	// UI´Â ¼ö½Å ¹öÆÛÀÇ Æ÷ÀÎÅÍ¸¦ º¸°üÇÏÁö ¾Ê°í ÀÚ½ÅÀÇ ¸Ş½ÃÁö Å¥¿ë º¹»çº»À» ¸¸µç´Ù.
+	// [assignment4] UIëŠ” ìˆ˜ì‹  ë²„í¼ì˜ í¬ì¸í„°ë¥¼ ë³´ê´€í•˜ì§€ ì•Šê³  ìì‹ ì˜ ë©”ì‹œì§€ íìš© ë³µì‚¬ë³¸ì„ ë§Œë“ ë‹¤.
 	CBaseLayer* upper = GetUpperLayer(0);
 	BOOL result = upper && upper->Receive(m_received.data(),
 		static_cast<int>(m_received.size()), m_receiveSource);

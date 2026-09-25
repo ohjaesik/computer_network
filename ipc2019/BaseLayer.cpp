@@ -1,8 +1,8 @@
-// BaseLayer.cpp: implementation of the CBaseLayer class.
+ï»¿// BaseLayer.cpp: implementation of the CBaseLayer class.
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "pch.h"  // /Yu ºôµå¿¡¼­ °øÅë ¼±¾ğÀ» ¸ÕÀú ºÒ·¯¿Â´Ù.
+#include "pch.h"  // [assignment4] /Yu ë¹Œë“œì—ì„œ ê³µí†µ ì„ ì–¸ì„ ë¨¼ì € ë¶ˆëŸ¬ì˜¨ë‹¤.
 #include "stdafx.h"
 #include "ipc2019.h"
 #include "BaseLayer.h"
@@ -24,6 +24,7 @@ CBaseLayer::CBaseLayer(const char* pName)
 	mp_UnderLayer(NULL)
 {
 	m_pLayerName = pName;
+	// [assignment4] ë“±ë¡ ì „ ìƒìœ„ ê³„ì¸µ ë°°ì—´ì„ NULLë¡œ ì´ˆê¸°í™”í•˜ì—¬ ì´ˆê¸° í¬ì¸í„° ê°’ì„ ëª…í™•í•˜ê²Œ í•œë‹¤.
 	memset(mp_aUpperLayer, 0, sizeof(mp_aUpperLayer));
 }
 
@@ -43,8 +44,8 @@ void CBaseLayer::SetUnderUpperLayer(CBaseLayer* pUULayer)
 	}
 
 	//////////////////////// fill the blank ///////////////////////////////
-		// ÀÎÀÚ·Î ¹ŞÀº °èÃşÀº ÇöÀç °èÃşÀÇ Under·Î ³õ°í
-		// ÇöÀç °èÃşÀ» ÀÎÀÚ·Î ¹ŞÀº °èÃşÀÇ Upper·Î ³õ´Â´Ù.
+		// ì¸ìë¡œ ë°›ì€ ê³„ì¸µì€ í˜„ì¬ ê³„ì¸µì˜ Underë¡œ ë†“ê³ 
+		// í˜„ì¬ ê³„ì¸µì„ ì¸ìë¡œ ë°›ì€ ê³„ì¸µì˜ Upperë¡œ ë†“ëŠ”ë‹¤.
 	this->mp_UnderLayer = pUULayer;
 	pUULayer->SetUpperLayer(this);
 	///////////////////////////////////////////////////////////////////////
@@ -61,8 +62,8 @@ void CBaseLayer::SetUpperUnderLayer(CBaseLayer* pUULayer)
 	}
 
 	//////////////////////// fill the blank ///////////////////////////////
-		// ÀÎÀÚ·Î ¹ŞÀº °èÃşÀ» Upper¿¡ ³õ°í
-		// ÇöÀç °èÃşÀº Upper·Î ³õÀº °èÃşÀÇ Under·Î ³õ´Â´Ù.
+		// ì¸ìë¡œ ë°›ì€ ê³„ì¸µì„ Upperì— ë†“ê³ 
+		// í˜„ì¬ ê³„ì¸µì€ Upperë¡œ ë†“ì€ ê³„ì¸µì˜ Underë¡œ ë†“ëŠ”ë‹¤.
 	SetUpperLayer(pUULayer);
 	pUULayer->SetUnderLayer(this);
 	///////////////////////////////////////////////////////////////////////
@@ -78,7 +79,7 @@ void CBaseLayer::SetUpperLayer(CBaseLayer* pUpperLayer)
 		return;
 	}
 
-	// µî·Ï °¡´ÉÇÑ °³¼ö¸¦ ³ÑÀ¸¸é ¹è¿­ ¹Û¿¡ Æ÷ÀÎÅÍ¸¦ ±â·ÏÇÏÁö ¾Ê´Â´Ù.
+	// [assignment4] ë“±ë¡ ê°€ëŠ¥í•œ ê°œìˆ˜ë¥¼ ë„˜ìœ¼ë©´ ë°°ì—´ ë°–ì— í¬ì¸í„°ë¥¼ ê¸°ë¡í•˜ì§€ ì•ŠëŠ”ë‹¤.
 	if (m_nUpperLayerCount >= MAX_LAYER_NUMBER) return;
 
 	// UpperLayer is added..
@@ -99,6 +100,7 @@ void CBaseLayer::SetUnderLayer(CBaseLayer* pUnderLayer)
 	this->mp_UnderLayer = pUnderLayer;
 }
 
+// [assignment4] ìƒìœ„ ê³„ì¸µ ì¸ë±ìŠ¤ë¥¼ ë“±ë¡ ê°œìˆ˜ ë¯¸ë§Œìœ¼ë¡œ ì œí•œí•˜ì—¬ ë°°ì—´ì˜ ë‹¤ìŒ ë¹ˆ ì¹¸ì„ ë°˜í™˜í•˜ì§€ ì•ŠëŠ”ë‹¤.
 CBaseLayer* CBaseLayer::GetUpperLayer(int nindex)
 {
 	if (nindex < 0 ||
@@ -127,6 +129,7 @@ CBaseLayer* CBaseLayer::GetUnderLayer()
 	return mp_UnderLayer;
 }
 
+// [assignment4] ê³„ì¸µ ê²€ìƒ‰ì— ì“°ëŠ” ì´ë¦„ì„ ì½ê¸° ì „ìš© í¬ì¸í„°ë¡œ ë°˜í™˜í•˜ì—¬ ë¬¸ìì—´ ë¦¬í„°ëŸ´ì„ ìˆ˜ì •í•˜ì§€ ì•ŠëŠ”ë‹¤.
 const char* CBaseLayer::GetLayerName()
 {
 	return m_pLayerName;

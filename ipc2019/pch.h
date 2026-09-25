@@ -8,7 +8,7 @@
 #define PCH_H
 
 // 여기에 미리 컴파일하려는 헤더 추가
-#include "stdafx.h"  // 기존 프로토콜 상수 및 Winsock 선언을 먼저 준비한다.
+#include "stdafx.h"  // [assignment4] 기존 프로토콜 상수 및 Winsock 선언을 먼저 준비한다.
 #include "framework.h"
 #include "BaseLayer.h"
 #include "LayerManager.h"

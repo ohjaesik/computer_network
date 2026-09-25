@@ -11,6 +11,7 @@
 #include "FileAppLayer.h"
 #include "FileLayer.h"	// Added by ClassView
 // Cipc2019Dlg 대화 상자
+// [assignment4] MFC Dialog와 CBaseLayer를 함께 상속하여 화면 객체도 프로토콜 스택의 상위 계층으로 연결한다.
 class Cipc2019Dlg : public CDialogEx, public CBaseLayer
 {
 // 생성입니다.
@@ -90,11 +91,11 @@ public:
 	UINT m_unSrcAddr;
 	UINT m_unDstAddr;
 	CString m_stMessage;
-    // 기존 컨트롤 ID/변수명은 유지하며 자동 줄바꿈이 되는 읽기 전용 편집창을 사용한다.
+    // [assignment4] 기존 컨트롤 ID/변수명은 유지하며 자동 줄바꿈이 되는 읽기 전용 편집창을 사용한다.
     CEdit m_ListChat;
 	afx_msg void OnBnClickedCheckToall();
 
-	// [과제 4 추가] NI에서 받은 채팅은 PostMessage로 UI 스레드에 복사 전달한다.
+	// [assignment4] NI에서 받은 채팅은 PostMessage로 UI 스레드에 복사 전달한다.
 	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
 	afx_msg void OnDestroy();
 	afx_msg void OnAdapterChanged();
@@ -105,13 +106,14 @@ public:
 	afx_msg LRESULT OnFileStatus(WPARAM wParam, LPARAM lParam);
 
 private:
+	// [assignment4] 장치 송수신·Ethernet 캡슐화·파일 송수신을 담당하는 계층 객체를 LayerManager에서 받아 보관한다.
 	CNILayer* m_NI = NULL;
 	CEthernetLayer* m_Ethernet = NULL;
 	CFileAppLayer* m_FileApp = NULL;
 	CComboBox m_AdapterCombo;
 	CProgressCtrl m_FileProgress;
     CProgressCtrl m_FileReceiveProgress;
-    // UI 스레드만 사용하는 표시 상태다. 두 방향의 속도 샘플을 따로 보관한다.
+    // [assignment4] UI 스레드만 사용하는 표시 상태다. 두 방향의 속도 샘플을 따로 보관한다.
     struct FILE_VIEW {
         FILE_STATUS latest = {};
         BOOL hasStatus = FALSE;

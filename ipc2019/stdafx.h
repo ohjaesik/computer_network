@@ -12,18 +12,18 @@
 
 #define VC_EXTRALEAN		// Exclude rarely-used stuff from Windows headers
 
-// MFC가 Windows 헤더를 먼저 준비하게 한다. 구버전 Winsock.h의 자동 포함은
-// 막아 두어, afxwin.h 다음에 Winsock2.h를 포함해도 소켓 선언이 충돌하지 않게 한다.
+// [assignment4] MFC가 Windows 헤더를 먼저 준비하게 한다. 구버전 Winsock.h의 자동 포함은
+// [assignment4] 막아 두어, afxwin.h 다음에 Winsock2.h를 포함해도 소켓 선언이 충돌하지 않게 한다.
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 
 #ifndef NOMINMAX
-#define NOMINMAX              // std::min/max와 Windows 매크로의 이름 충돌 방지
+#define NOMINMAX              // [assignment4] std::min/max와 Windows 매크로의 이름 충돌 방지
 #endif
-// Winsock2.h도 내부에서 Windows.h를 포함하므로 MFC보다 먼저 포함하면 안 된다.
+// [assignment4] Winsock2.h도 내부에서 Windows.h를 포함하므로 MFC보다 먼저 포함하면 안 된다.
 #include <afxwin.h>         // MFC core and standard components
-#include <WinSock2.h>         // pcap보다 먼저 포함하여 Winsock 선언 충돌 방지
+#include <WinSock2.h>         // [assignment4] pcap보다 먼저 포함하여 Winsock 선언 충돌 방지
 #include <afxext.h>         // MFC extensions
 #include <afxdisp.h>        // MFC Automation classes
 #include <afxdtctl.h>		// MFC support for Internet Explorer 4 Common Controls
@@ -32,11 +32,11 @@
 #endif // _AFX_NO_AFXCMN_SUPPORT
 
 
-#include <afxmt.h>           // 송수신 스레드의 임계 구역
-#include <stdint.h>          // 패킷 필드의 크기를 16/32비트로 고정
+#include <afxmt.h>           // [assignment4] 송수신 스레드의 임계 구역
+#include <stdint.h>          // [assignment4] 패킷 필드의 크기를 16/32비트로 고정
 #include <algorithm>
 #include <vector>
-#include <atlconv.h>         // CString과 전송용 UTF-8 문자열 변환
+#include <atlconv.h>         // [assignment4] CString과 전송용 UTF-8 문자열 변환
 
 //{{AFX_INSERT_LOCATION}}
 
@@ -56,29 +56,35 @@
 												          TCP_HEADER_SIZE +		\
 												          IP_HEADER_SIZE ) )
 
-// [Assignment 4 추가] 기존 IPC 상수는 위에 유지하고 Ethernet 통신용 상수만 추가한다.
-// 1: 과제 4의 NI 경로, 0: 기존 과제 3의 파일 기반 IPC 경로.
+// [assignment4] 기존 IPC 상수는 위에 유지하고 Ethernet 통신용 상수만 추가한다.
+// [assignment4] 1: 과제 4의 NI 경로, 0: 기존 과제 3의 파일 기반 IPC 경로.
 #define USE_NPCAP_STACK             1
 #define ETHERNET_ADDRESS_SIZE       6
+// [assignment4] Ethernet의 16비트 Type 필드로 채팅(0x2080)과 파일(0x2090)을 다중화한다.
 #define ETHERNET_TYPE_CHAT          0x2080
 #define ETHERNET_TYPE_FILE          0x2090
+// [assignment4] 4바이트 채팅 헤더를 제외한 1496바이트를 한 조각의 최대 데이터 크기로 사용한다.
 #define CHAT_APP_HEADER_SIZE        4
 #define CHAT_APP_DATA_SIZE          (ETHER_MAX_DATA_SIZE - CHAT_APP_HEADER_SIZE)
-#define CHAT_MAX_MESSAGE_SIZE       0xffff  // 과제의 2바이트 전체 길이 필드 범위
+#define CHAT_MAX_MESSAGE_SIZE       0xffff  // [assignment4] 과제의 2바이트 전체 길이 필드 범위
+// [assignment4] 채팅 조각 유형: 첫 조각 0, 중간 조각 1, 마지막 조각 2. 단일 조각은 첫 조각 유형을 사용한다.
 #define CHAT_FRAGMENT_FIRST         0x00
 #define CHAT_FRAGMENT_MIDDLE        0x01
 #define CHAT_FRAGMENT_LAST          0x02
+// [assignment4] 12바이트 파일 헤더를 제외한 1488바이트로 파일 데이터를 단편화한다.
 #define FILE_APP_HEADER_SIZE        12
 #define FILE_APP_DATA_SIZE          (ETHER_MAX_DATA_SIZE - FILE_APP_HEADER_SIZE)
 #define FILE_TYPE_BINARY            0x0000
+// [assignment4] 파일 메시지 유형: INFO로 파일명·크기 전달, DATA로 본문 전달, END로 종료 검증을 요청한다.
 #define FILE_MESSAGE_INFO           0x00
 #define FILE_MESSAGE_DATA           0x01
 #define FILE_MESSAGE_END            0x02
+// [assignment4] 작업 스레드의 채팅·진행 상태를 기존 MFC UI 스레드에 전달하는 사용자 메시지 ID다.
 #define WM_CHAT_RECEIVED             (WM_APP + 101)
 #define WM_FILE_STATUS              (WM_APP + 102)
 
-// 파일 UI의 주기 갱신은 기존 IPC ACK 타이머(1번)와 다른 ID를 사용한다.
-// 1%보다 적게 진행해도 상태를 전달하고, 데이터가 오지 않는 동안에도 UI는 갱신한다.
+// [assignment4] 파일 UI의 주기 갱신은 기존 IPC ACK 타이머(1번)와 다른 ID를 사용한다.
+// [assignment4] 1%보다 적게 진행해도 상태를 전달하고, 데이터가 오지 않는 동안에도 UI는 갱신한다.
 #define FILE_UI_TIMER_ID             0xA401
 #define FILE_UI_REFRESH_MS           250
 #define FILE_RATE_SAMPLE_MS          1000
