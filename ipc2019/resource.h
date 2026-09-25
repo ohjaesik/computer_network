@@ -22,16 +22,16 @@
 #define IDC_CHECK1                      1006
 #define IDC_CHECK_TOALL                 1006
 
-// [과제 4 추가] 기존 컨트롤 ID는 그대로 유지하고 새 항목만 배정한다.
+// [assignment4] 기존 컨트롤 ID는 그대로 유지하고 새 항목만 배정한다.
 #define IDC_COMBO_ADAPTER               1007
 #define IDC_EDIT_FILE_PATH              1008
 #define IDC_BUTTON_FILE_BROWSE          1009
 #define IDC_BUTTON_FILE_SEND            1010
 #define IDC_PROGRESS_FILE               1011
 #define IDC_STATIC_FILE_STATUS          1012
-// 어댑터/주소 설정 결과를 파일 전송 진행 상태와 분리해 표시한다.
+// [assignment4] 어댑터/주소 설정 결과를 파일 전송 진행 상태와 분리해 표시한다.
 #define IDC_STATIC_NETWORK_STATUS       1013
-// 송신/수신을 동시에 표시해 한쪽 진행률이 다른 쪽을 덮어쓰지 않게 한다.
+// [assignment4] 송신/수신을 동시에 표시해 한쪽 진행률이 다른 쪽을 덮어쓰지 않게 한다.
 #define IDC_PROGRESS_FILE_RECEIVE       1014
 #define IDC_EDIT_FILE_RECEIVE_STATUS    1015
 #define IDC_BUTTON_RECEIVED_FOLDER      1016

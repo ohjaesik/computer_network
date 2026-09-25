@@ -1,4 +1,5 @@
-// FileLayer.cpp: implementation of the CFileLayer class.
+ï»¿// FileLayer.cpp: ê³µìœ  íŒŒì¼ IpcBuff.txtë¥¼ ì‚¬ìš©í•˜ëŠ” ê¸°ì¡´ IPC ê³„ì¸µ êµ¬í˜„ì´ë‹¤.
+// ê³¼ì œ 4ì˜ ë„¤íŠ¸ì›Œí¬ íŒŒì¼ ì „ì†¡ì€ FileAppLayerì™€ NILayerê°€ ë‹´ë‹¹í•œë‹¤.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -26,7 +27,7 @@ CFileLayer::~CFileLayer()
 	TRY
 	{
 		//////////////////////// fill the blank ///////////////////////////////
-				CFile::Remove(_T("IpcBuff.txt")); // ÆÄÀÏ Á¦°Å
+				CFile::Remove(_T("IpcBuff.txt")); // íŒŒì¼ ì œê±°
 		///////////////////////////////////////////////////////////////////////
 	}
 		CATCH(CFileException, e)
@@ -45,7 +46,7 @@ BOOL CFileLayer::Send(unsigned char* ppayload, int nlength)
 		CFile m_FileDes(_T("IpcBuff.txt"),
 						 CFile::modeCreate | CFile::modeWrite);
 	//////////////////////// fill the blank ///////////////////////////////
-			// ÆÄÀÏ »ý¼º
+			// ì „ë‹¬ë°›ì€ í”„ë ˆìž„ nlengthë°”ì´íŠ¸ë¥¼ ê³µìœ  íŒŒì¼ì— ê¸°ë¡í•˜ê³  íŒŒì¼ì„ ë‹«ëŠ”ë‹¤.
 			m_FileDes.Write(ppayload,nlength);
 			m_FileDes.Close();
 			///////////////////////////////////////////////////////////////////////
@@ -69,24 +70,24 @@ BOOL CFileLayer::Receive()
 		CFile m_FileDes(_T("IpcBuff.txt"), CFile::modeRead);
 
 	//////////////////////// fill the blank ///////////////////////////////
-			// ÆÄÀÏÀÇ ³»¿ëÀ» °¡Á®¿Â´Ù.
+			// íŒŒì¼ì˜ ë‚´ìš©ì„ ê°€ì ¸ì˜¨ë‹¤.
 
-			// Ethernet Frame = Header | Data ÀÌ¹Ç·Î, ÇöÀç ¾î´ÀÁ¤µµÀÇ Å©±âÀÇ µ¥ÀÌÅÍ°¡ µé¾îÀÖ´ÂÁö ¸ð¸¥´Ù.
-			// ±×·¡¼­ Ethernet Header Å©±â¿Í Ethernet DataÀÇ ÃÖ´ë Å©±â·Î FrameÀÇ Å©±â¸¦ Á¤ÇÑ´Ù.
+			// Ethernet Frame = Header | Data ì´ë¯€ë¡œ, í˜„ìž¬ ì–´ëŠì •ë„ì˜ í¬ê¸°ì˜ ë°ì´í„°ê°€ ë“¤ì–´ìžˆëŠ”ì§€ ëª¨ë¥¸ë‹¤.
+			// ê·¸ëž˜ì„œ Ethernet Header í¬ê¸°ì™€ Ethernet Dataì˜ ìµœëŒ€ í¬ê¸°ë¡œ Frameì˜ í¬ê¸°ë¥¼ ì •í•œë‹¤.
 			int nlength = ETHER_HEADER_SIZE + ETHER_MAX_DATA_SIZE;
 			unsigned char* ppayload = new unsigned char[nlength + 1];
 
-			// Á¤ÇØÁø FrameÀÇ ±æÀÌ¸¸Å­ ÆÄÀÏÀÇ ³»¿ë(»ó´ë ÇÁ·Î¼¼½º¿¡°Ô Àü¼Û ¹ÞÀº Ethernet Frame)À»
-			// ÀÐ¾î¿Í¼­ ppayload¸¦ °áÁ¤ÇÑ´Ù.
+			// ì •í•´ì§„ Frameì˜ ê¸¸ì´ë§Œí¼ íŒŒì¼ì˜ ë‚´ìš©(ìƒëŒ€ í”„ë¡œì„¸ìŠ¤ì—ê²Œ ì „ì†¡ ë°›ì€ Ethernet Frame)ì„
+			// ì½ì–´ì™€ì„œ ppayloadë¥¼ ê²°ì •í•œë‹¤.
 			m_FileDes.Read(ppayload,nlength);
 			ppayload[nlength] = '\0';
 
-			// Ethernet °èÃþÀ¸·Î ÆÄÀÏ¿¡¼­ °¡Á®¿Â FrameÀ» ³Ñ°ÜÁØ´Ù. 
-			if (!mp_aUpperLayer[0]->Receive(ppayload)) { // ³Ñ°ÜÁÖÁö ¸øÇß´Ù¸é FALSE
+			// Ethernet ê³„ì¸µìœ¼ë¡œ íŒŒì¼ì—ì„œ ê°€ì ¸ì˜¨ Frameì„ ë„˜ê²¨ì¤€ë‹¤.
+			if (!mp_aUpperLayer[0]->Receive(ppayload)) { // ë„˜ê²¨ì£¼ì§€ ëª»í–ˆë‹¤ë©´ FALSE
 				m_FileDes.Close();
 				return FALSE;
 			}
-			// ¼º°øÇß´Ù¸é TRUE¸¦ return
+			// ì„±ê³µí–ˆë‹¤ë©´ TRUEë¥¼ return
 	///////////////////////////////////////////////////////////////////////
 			m_FileDes.Close();
 	}

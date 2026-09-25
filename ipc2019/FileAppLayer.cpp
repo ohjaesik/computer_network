@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "FileAppLayer.h"
 
+// [assignment4] 송신 스레드·취소 상태와 수신 파일의 크기·순번·송신자 정보를 초기화한다.
 CFileAppLayer::CFileAppLayer(const char* name)
 	: CBaseLayer(name), m_window(NULL), m_thread(NULL), m_sending(FALSE),
 	m_cancel(FALSE), m_receiving(FALSE), m_total(0), m_nextSequence(0),
@@ -9,21 +10,24 @@ CFileAppLayer::CFileAppLayer(const char* name)
 	memset(m_sender, 0, sizeof(m_sender));
 }
 
+// [assignment4] 송신 스레드를 종료하고 미완성 수신 파일을 정리하여 객체 수명을 마친다.
 CFileAppLayer::~CFileAppLayer()
 {
 	StopTransfer();
 	ResetReceive();
 }
 
+// [assignment4] UI와 송신 작업 스레드가 공유하는 송신 여부를 Interlocked 연산으로 읽는다.
 BOOL CFileAppLayer::IsSending() const
 {
 	return InterlockedCompareExchange(const_cast<volatile LONG*>(&m_sending), 0, 0) != 0;
 }
 
+// [assignment4] 중복 송신을 막고 파일 경로를 저장한 뒤 파일 읽기·단편 송신을 맡는 작업 스레드를 시작한다.
 BOOL CFileAppLayer::StartSendFile(const CString& path)
 {
 	if (IsSending() || path.IsEmpty() || !mp_UnderLayer) return FALSE;
-	// 완료된 CWinThread는 자동 삭제하지 않으므로 새 작업 전에 직접 정리한다.
+	// [assignment4] 완료된 CWinThread는 자동 삭제하지 않으므로 새 작업 전에 직접 정리한다.
 	StopTransfer();
 	m_sendPath = path;
 	InterlockedExchange(&m_cancel, FALSE);
@@ -38,6 +42,7 @@ BOOL CFileAppLayer::StartSendFile(const CString& path)
 	return TRUE;
 }
 
+// [assignment4] 취소 플래그를 전달하고 송신 스레드가 빠져나올 때까지 기다린 뒤 스레드 객체를 해제한다.
 void CFileAppLayer::StopTransfer()
 {
 	InterlockedExchange(&m_cancel, TRUE);
@@ -49,8 +54,8 @@ void CFileAppLayer::StopTransfer()
 	InterlockedExchange(&m_sending, FALSE);
 }
 
-// 파일 읽기/단편 전송을 UI와 분리하여 전송 도중에도 채팅 버튼을 처리할 수 있다.
-// 완료 알림보다 먼저 sending을 해제하므로 UI에서 재전송할 때 상태가 일치한다.
+// [assignment4] 파일 읽기/단편 전송을 UI와 분리하여 전송 도중에도 채팅 버튼을 처리할 수 있다.
+// [assignment4] 완료 알림보다 먼저 sending을 해제하므로 UI에서 재전송할 때 상태가 일치한다.
 UINT __cdecl CFileAppLayer::FileTransferThread(LPVOID parameter)
 {
 	CFileAppLayer* layer = static_cast<CFileAppLayer*>(parameter);
@@ -61,9 +66,11 @@ UINT __cdecl CFileAppLayer::FileTransferThread(LPVOID parameter)
 	return ok ? 0 : 1;
 }
 
+// [assignment4] 파일명과 전체 크기를 INFO로 보낸 뒤 최대 1488바이트씩 읽어 DATA 순번을 붙이고 END로 마무리한다.
+// [assignment4] 전체 파일을 메모리에 적재하지 않으며 실제 송신한 바이트로 진행 상태를 전달한다.
 BOOL CFileAppLayer::SendFile(CString& result)
 {
-    // 이전 작업의 크기/시간을 재사용하지 않는다. 열기 실패도 새 작업의 결과로 표시한다.
+    // [assignment4] 이전 작업의 크기/시간을 재사용하지 않는다. 열기 실패도 새 작업의 결과로 표시한다.
     m_sendProgress = FILE_PROGRESS();
     m_sendProgress.startedAtMs = m_sendProgress.lastProgressAtMs = GetTickCount64();
     int slash = (std::max)(m_sendPath.ReverseFind(_T('\\')), m_sendPath.ReverseFind(_T('/')));
@@ -77,8 +84,8 @@ BOOL CFileAppLayer::SendFile(CString& result)
 	}
 	try {
 		ULONGLONG size = file.GetLength();
-		// unsigned long이 4바이트인 과제 헤더에 맞춘다. 넘치는 크기를 강제 형변환해
-		// 다른 크기로 전송하지 않는다. 파일 전체를 메모리에 올리지 않고 순차로 읽는다.
+		// [assignment4] unsigned long이 4바이트인 과제 헤더에 맞춘다. 넘치는 크기를 강제 형변환해
+		// [assignment4] 다른 크기로 전송하지 않는다. 파일 전체를 메모리에 올리지 않고 순차로 읽는다.
 		if (size > 0xffffffffULL) {
 			result = _T("과제의 32비트 길이 필드로는 4 GiB 이상을 표현할 수 없습니다.");
 			return FALSE;
@@ -89,7 +96,7 @@ BOOL CFileAppLayer::SendFile(CString& result)
 		if (utf8.IsEmpty() || utf8.GetLength() + 1 > FILE_APP_DATA_SIZE) {
 			result = _T("전송 파일명이 너무 깁니다."); return FALSE;
 		}
-		// INFO: 순번 0, 전체 크기, 데이터 종류, UTF-8 파일명(널 종료)을 보낸다.
+		// [assignment4] INFO: 순번 0, 전체 크기, 데이터 종류, UTF-8 파일명(널 종료)을 보낸다.
 		if (!SendPacket(FILE_MESSAGE_INFO, total, 0,
 			reinterpret_cast<const unsigned char*>(static_cast<LPCSTR>(utf8)), utf8.GetLength() + 1)) {
 			result = _T("파일 정보 프레임 송신 실패"); return FALSE;
@@ -109,26 +116,26 @@ BOOL CFileAppLayer::SendFile(CString& result)
 				result = _T("파일 데이터 프레임 송신 실패"); return FALSE;
 			}
 			sent += count;
-            // pcap_sendpacket이 성공한 데이터 양을 센다. 상대 저장량을 의미하지 않는다.
+            // [assignment4] pcap_sendpacket이 성공한 데이터 양을 센다. 상대 저장량을 의미하지 않는다.
             m_sendProgress.completedBytes = sent;
             m_sendProgress.lastProgressAtMs = GetTickCount64();
 			int percent = total ? static_cast<int>(sent * 100 / total) : 100;
-			// 패킷마다 알림을 쌓지 않고 표시할 정수 진행률이 바뀔 때만 알린다.
-            // [표시 확장] 기존 정수 진행률 변화 외에 250ms 경과도 알림 조건으로 추가한다.
-            // 큰 파일에서 1%가 오르기 전까지 화면이 멈춘 것처럼 보이는 일을 막는다.
+			// [assignment4] 정수 진행률이 바뀌거나 마지막 알림 이후 250ms가 지나면 UI에 상태를 전달한다.
+            // [assignment4] 송신량·속도 표시에 필요한 스냅샷을 전달하고 최종 화면 계산은 UI에서 수행한다.
+            // [assignment4] 큰 파일에서 1%가 오르기 전까지 화면이 멈춘 것처럼 보이는 일을 막는다.
             if (percent != previous || m_sendProgress.lastProgressAtMs -
                 m_sendProgress.lastReportAtMs >= FILE_UI_REFRESH_MS) {
                 Notify(_T("파일 송신 중"), percent, TRUE, FALSE);
                 previous = percent;
             }
-			Sleep(1); // 수신/채팅에도 실행 기회를 주고 연속 주입 속도를 낮춘다. ACK 대기는 아니다.
+			Sleep(1); // [assignment4] 수신/채팅에도 실행 기회를 주고 연속 주입 속도를 낮춘다. ACK 대기는 아니다.
 		}
 		file.Close();
 		if (sent != total || !SendPacket(FILE_MESSAGE_END, total, sequence, NULL, 0)) {
 			result = _T("파일 종료 프레임 송신 실패"); return FALSE;
 		}
-		// pcap_sendpacket 성공은 상대의 파일 저장 확인을 뜻하지 않는다.
-		// 이 과제에는 ACK/재전송을 추가하지 않고 수신 측 END 검증 결과를 확인한다.
+		// [assignment4] pcap_sendpacket 성공은 상대의 파일 저장 확인을 뜻하지 않는다.
+		// [assignment4] 이 과제에는 ACK/재전송을 추가하지 않고 수신 측 END 검증 결과를 확인한다.
 		result = _T("파일 프레임 송신 완료 (상대 수신 결과 확인 필요)");
 		return TRUE;
 	} catch (CFileException* exception) {
@@ -139,6 +146,7 @@ BOOL CFileAppLayer::SendFile(CString& result)
 	}
 }
 
+// [assignment4] 12바이트 파일 헤더의 크기·유형·순번을 network byte order로 기록하고 파일 EtherType으로 전달한다.
 BOOL CFileAppLayer::SendPacket(unsigned char type, uint32_t total, uint32_t sequence,
 	const unsigned char* data, int length)
 {
@@ -153,6 +161,8 @@ BOOL CFileAppLayer::SendPacket(unsigned char type, uint32_t total, uint32_t sequ
 		FILE_APP_HEADER_SIZE + length, ETHERNET_TYPE_FILE);
 }
 
+// [assignment4] 헤더 길이와 파일 유형을 검사하여 INFO/DATA/END 처리 함수로 분기한다.
+// [assignment4] DATA와 END는 진행 중인 파일의 송신자 MAC과 일치할 때만 처리한다.
 BOOL CFileAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
 	if (!payload || !source || length < FILE_APP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE) return FALSE;
@@ -167,6 +177,8 @@ BOOL CFileAppLayer::Receive(unsigned char* payload, int length, const unsigned c
 	return FALSE;
 }
 
+// [assignment4] 첫 정보 프레임의 UTF-8 파일명과 순번을 검증하고 ReceivedFiles 아래 .part 파일을 생성한다.
+// [assignment4] 전체 파일 크기만큼 공간을 확보하고 기대 순번을 1로 설정하여 데이터 수신을 준비한다.
 BOOL CFileAppLayer::ReceiveInfo(FILE_APP_HEADER* packet, int length, const unsigned char* source)
 {
 	if (ntohl(packet->fapp_seq_num) != 0 || length <= 0) return FALSE;
@@ -174,7 +186,7 @@ BOOL CFileAppLayer::ReceiveInfo(FILE_APP_HEADER* packet, int length, const unsig
 	if (!end || end == packet->fapp_data) return FALSE;
 	CStringA utf8(reinterpret_cast<const char*>(packet->fapp_data), static_cast<int>(end - packet->fapp_data));
 	CString name(CA2T(utf8, CP_UTF8));
-	// 패킷의 파일명은 파일명으로만 사용한다. 상대 경로/절대 경로로 저장 폴더를 벗어나지 않는다.
+	// [assignment4] 패킷의 파일명은 파일명으로만 사용한다. 상대 경로/절대 경로로 저장 폴더를 벗어나지 않는다.
 	if (name.FindOneOf(_T("\\/:*?\"<>|")) >= 0 || name == _T(".") || name == _T("..")) return FALSE;
 	for (int i = 0; i < name.GetLength(); ++i) if (name[i] < 32) return FALSE;
 	if (name.IsEmpty() || name.Right(1) == _T(".") || name.Right(1) == _T(" ")) return FALSE;
@@ -196,12 +208,12 @@ BOOL CFileAppLayer::ReceiveInfo(FILE_APP_HEADER* packet, int length, const unsig
 	CFileException error;
 	if (!m_receiveFile.Open(m_partialPath, CFile::modeCreate | CFile::modeReadWrite | CFile::shareExclusive, &error)) {
 		Notify(_T("수신 파일 생성 실패"), 0, FALSE, TRUE);
-		m_partialPath.Empty(); // 열지 못한 다른 작업의 파일을 지우지 않는다.
+		m_partialPath.Empty(); // [assignment4] 열지 못한 다른 작업의 파일을 지우지 않는다.
 		ResetReceive(); return FALSE;
 	}
 	try {
 		m_total = ntohl(packet->fapp_totlen);
-		m_receiveFile.SetLength(m_total); // 과제 요구: 첫 정보 수신 시 저장 공간 확보
+		m_receiveFile.SetLength(m_total); // [assignment4] 과제 요구: 첫 정보 수신 시 저장 공간 확보
 		m_receiveFile.SeekToBegin();
 	} catch (CFileException* exception) {
 		exception->Delete(); ResetReceive();
@@ -216,9 +228,11 @@ BOOL CFileAppLayer::ReceiveInfo(FILE_APP_HEADER* packet, int length, const unsig
 	return TRUE;
 }
 
+// [assignment4] 전체 크기와 기대 순번이 맞는 조각만 파일에 기록하며 실제 기록량으로 수신 진행률을 계산한다.
+// [assignment4] 누락·순서 오류가 발견되면 미완성 파일을 폐기하며 재전송 요청은 수행하지 않는다.
 BOOL CFileAppLayer::ReceiveData(FILE_APP_HEADER* packet, int length)
 {
-	// DATA는 항상 최대 크기씩 나누고 마지막 DATA만 짧다. 남은 크기로 padding을 제외한다.
+	// [assignment4] DATA는 항상 최대 크기씩 나누고 마지막 DATA만 짧다. 남은 크기로 padding을 제외한다.
 	uint64_t remaining = static_cast<uint64_t>(m_total) - m_received;
 	UINT count = static_cast<UINT>((std::min)(remaining, static_cast<uint64_t>(FILE_APP_DATA_SIZE)));
 	if (ntohl(packet->fapp_totlen) != m_total || ntohl(packet->fapp_seq_num) != m_nextSequence ||
@@ -232,7 +246,7 @@ BOOL CFileAppLayer::ReceiveData(FILE_APP_HEADER* packet, int length)
 		Notify(_T("수신 파일 기록 실패"), 0, FALSE, TRUE); return FALSE;
 	}
 	m_received += count;
-    // 파일 공간을 미리 확보했으므로 파일 크기가 아닌 Write 성공 바이트를 측정한다.
+    // [assignment4] 파일 공간을 미리 확보했으므로 파일 크기가 아닌 Write 성공 바이트를 측정한다.
     m_receiveProgress.completedBytes = m_received;
     m_receiveProgress.lastProgressAtMs = GetTickCount64();
 	++m_nextSequence;
@@ -245,10 +259,11 @@ BOOL CFileAppLayer::ReceiveData(FILE_APP_HEADER* packet, int length)
 	return TRUE;
 }
 
+// [assignment4] END의 전체 크기·순번과 실제 기록한 바이트 수를 비교한 뒤 .part를 최종 파일명으로 변경한다.
 BOOL CFileAppLayer::ReceiveEnd(FILE_APP_HEADER* packet)
 {
-	// 미리 SetLength했으므로 파일 크기만으로 성공 여부를 판단하면 안 된다.
-	// 실제 기록한 누적 길이, total 필드, 다음 순번을 함께 비교한다. 빈 파일도 처리한다.
+	// [assignment4] 미리 SetLength했으므로 파일 크기만으로 성공 여부를 판단하면 안 된다.
+	// [assignment4] 실제 기록한 누적 길이, total 필드, 다음 순번을 함께 비교한다. 빈 파일도 처리한다.
 	if (ntohl(packet->fapp_totlen) != m_total || ntohl(packet->fapp_seq_num) != m_nextSequence || m_received != m_total) {
 		Notify(_T("파일 종료 검증 실패: 누락된 조각이 있습니다."), 0, FALSE, TRUE);
 		ResetReceive(); return FALSE;
@@ -263,15 +278,17 @@ BOOL CFileAppLayer::ReceiveEnd(FILE_APP_HEADER* packet)
 		ResetReceive(); return FALSE;
 	}
 	CString result = _T("파일 수신 완료: ") + m_finalPath;
-	m_partialPath.Empty(); // 완료된 파일은 ResetReceive에서 지우지 않는다.
+	m_partialPath.Empty(); // [assignment4] 완료된 파일은 ResetReceive에서 지우지 않는다.
 	ResetReceive();
 	Notify(result, 100, FALSE, TRUE);
 	return TRUE;
 }
 
+// [assignment4] 열린 수신 파일을 닫고 미완성 .part 파일 및 재조립 상태를 초기화한다.
+// [assignment4] 마지막 진행 스냅샷은 완료·오류 표시에서 사용할 수 있도록 유지한다.
 void CFileAppLayer::ResetReceive()
 {
-	// NI 스레드 내부 또는 NI가 종료된 뒤 UI에서만 호출하여 수신 기록과 충돌하지 않는다.
+	// [assignment4] NI 스레드 내부 또는 NI가 종료된 뒤 UI에서만 호출하여 수신 기록과 충돌하지 않는다.
 	if (m_receiveFile.m_hFile != CFile::hFileNull) m_receiveFile.Abort();
 	if (!m_partialPath.IsEmpty()) DeleteFile(m_partialPath);
 	m_partialPath.Empty(); m_finalPath.Empty();
@@ -279,6 +296,7 @@ void CFileAppLayer::ResetReceive()
 	m_lastPercent = -1;
 }
 
+// [assignment4] 방향별 진행 계수와 시간을 FILE_STATUS에 복사하여 WM_FILE_STATUS로 UI 스레드에 전달한다.
 void CFileAppLayer::Notify(const CString& message, int percent, BOOL sending, BOOL finished)
 {
 	if (!m_window) return;
@@ -289,11 +307,11 @@ void CFileAppLayer::Notify(const CString& message, int percent, BOOL sending, BO
     progress.lastReportAtMs = GetTickCount64();
     status->progress = progress;
     status->reportedAtMs = progress.lastReportAtMs;
-	// 성공 시 UI 핸들러가 delete한다. 전달 실패 시 여기서 해제해 누수를 방지한다.
+	// [assignment4] 성공 시 UI 핸들러가 delete한다. 전달 실패 시 여기서 해제해 누수를 방지한다.
 	if (!::PostMessage(m_window, WM_FILE_STATUS, 0, reinterpret_cast<LPARAM>(status))) delete status;
 }
 
-// 저장 코드와 "수신 폴더 열기" 버튼이 같은 경로를 사용하도록 한 곳에서 계산한다.
+// [assignment4] 저장 코드와 "수신 폴더 열기" 버튼이 같은 경로를 사용하도록 한 곳에서 계산한다.
 CString CFileAppLayer::GetReceiveDirectory()
 {
     TCHAR module[MAX_PATH] = {};

@@ -3,12 +3,12 @@
 //
 
 #include "pch.h"
-#include <shellapi.h>  // 수신 파일이 저장된 폴더를 탐색기로 연다.
+#include <shellapi.h>  // [assignment4] 수신 파일이 저장된 폴더를 탐색기로 연다.
 #include "framework.h"
 #include "ipc2019.h"
 #include "ipc2019Dlg.h"
 #include "afxdialogex.h"
-#include <afxdlgs.h> // 파일 선택 창(CFileDialog) 선언
+#include <afxdlgs.h> // [assignment4] 파일 선택 창(CFileDialog) 선언
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -76,18 +76,18 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	m_LayerMgr.AddLayer(new CChatAppLayer("ChatApp"));
 	m_LayerMgr.AddLayer(new CEthernetLayer("Ethernet"));
 	#if USE_NPCAP_STACK
-	// NI가 실제 전송을 맡고 FileApp이 파일 내용을 분할한다. 기존 FileLayer와는 역할이 다르다.
+	// [assignment4] NI가 실제 전송을 맡고 FileApp이 파일 내용을 분할한다. 기존 FileLayer와는 역할이 다르다.
 	m_LayerMgr.AddLayer(new CNILayer("NI"));
 	m_LayerMgr.AddLayer(new CFileAppLayer("FileApp"));
 #else
 	m_LayerMgr.AddLayer(new CFileLayer("File"));
 #endif
-	m_LayerMgr.AddLayer(this, FALSE); // main에서 생성한 Dialog는 LayerManager 소유가 아니다.
+	m_LayerMgr.AddLayer(this, FALSE); // [assignment4] InitInstance에서 만든 Dialog는 LayerManager가 삭제하지 않도록 소유권을 제외한다.
 
 	// 레이어를 연결한다. (레이어 생성)
 #if USE_NPCAP_STACK
-	// Dialog의 단일 Under 포인터는 ChatApp에 둔다. 파일 송신은 m_FileApp으로 호출하므로
-	// FileApp -> Dialog 연결에는 '+'를 써서 기존 Under 포인터를 덮어쓰지 않는다.
+	// [assignment4] Dialog의 단일 Under 포인터는 ChatApp에 둔다. 파일 송신은 m_FileApp으로 호출하므로
+	// [assignment4] FileApp -> Dialog 연결에는 '+'를 써서 기존 Under 포인터를 덮어쓰지 않는다.
 	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) )");
 	m_NI = (CNILayer*)m_LayerMgr.GetLayer("NI");
 	m_Ethernet = (CEthernetLayer*)m_LayerMgr.GetLayer("Ethernet");
@@ -104,6 +104,7 @@ void Cipc2019Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 #if USE_NPCAP_STACK
+	// [assignment4] MAC 주소·파일 경로·어댑터 목록·송수신 진행 컨트롤을 Dialog 멤버와 연결한다.
 	DDX_Text(pDX, IDC_EDIT_SRC, m_sourceMac);
 	DDX_Text(pDX, IDC_EDIT_DST, m_destinationMac);
 	DDX_Text(pDX, IDC_EDIT_FILE_PATH, m_filePath);
@@ -131,6 +132,7 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_ADDR, &Cipc2019Dlg::OnBnClickedButtonAddr)
 	ON_BN_CLICKED(IDC_BUTTON_SEND, &Cipc2019Dlg::OnBnClickedButtonSend)
 	ON_WM_TIMER()
+	// [assignment4] 장치 선택·파일 버튼 이벤트와 작업 스레드가 보낸 결과 메시지를 UI 핸들러에 연결한다.
 	ON_WM_DESTROY()
 	ON_CBN_SELCHANGE(IDC_COMBO_ADAPTER, &Cipc2019Dlg::OnAdapterChanged)
 	ON_BN_CLICKED(IDC_BUTTON_FILE_BROWSE, &Cipc2019Dlg::OnFileBrowse)
@@ -183,9 +185,10 @@ BOOL Cipc2019Dlg::OnInitDialog()
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	SetRegstryMessage();
-    // 0은 OS가 지원하는 최대 텍스트 길이로 제한을 확장한다. 긴 단편 재조립 메시지도 표시한다.
+    // [assignment4] 0은 OS가 지원하는 최대 텍스트 길이로 제한을 확장한다. 긴 단편 재조립 메시지도 표시한다.
     m_ListChat.SetLimitText(0);
 #if USE_NPCAP_STACK
+	// [assignment4] 현재 Dialog를 파일 상태 알림 대상으로 지정하고 송신·수신 진행창과 UI 타이머를 초기화한다.
 	m_FileApp->SetNotifyWindow(m_hWnd);
 	m_FileProgress.SetRange(0, 100);
     m_FileReceiveProgress.SetRange(0, 100);
@@ -193,11 +196,11 @@ BOOL Cipc2019Dlg::OnInitDialog()
     SetDlgItemText(IDC_EDIT_FILE_RECEIVE_STATUS, _T("수신 대기 중"));
     SetTimer(FILE_UI_TIMER_ID, FILE_UI_REFRESH_MS, NULL);
 	((CEdit*)GetDlgItem(IDC_EDIT_SRC))->SetReadOnly(TRUE);
-	// MFC 편집창의 기본 입력 제한 때문에 MTU 초과 단편화를 시험하지 못하는 일을 막는다.
+	// [assignment4] MFC 편집창의 기본 입력 제한 때문에 MTU 초과 단편화를 시험하지 못하는 일을 막는다.
 	((CEdit*)GetDlgItem(IDC_EDIT_MSG))->SetLimitText(CHAT_MAX_MESSAGE_SIZE);
 	if (m_NI->LoadAdapters()) {
-		// 오른쪽 설정 열은 좁게 유지하되, 목록을 펼쳤을 때는 긴 장치 설명도 읽을 수 있게 한다.
-		// 고정 픽셀 값 대신 실제 컨트롤 폰트로 측정해 Windows 배율에 맞는 펼침 폭을 구한다.
+		// [assignment4] 오른쪽 설정 열은 좁게 유지하되, 목록을 펼쳤을 때는 긴 장치 설명도 읽을 수 있게 한다.
+		// [assignment4] 고정 픽셀 값 대신 실제 컨트롤 폰트로 측정해 Windows 배율에 맞는 펼침 폭을 구한다.
 		CClientDC adapterDC(&m_AdapterCombo);
 		CFont* previousFont = adapterDC.SelectObject(m_AdapterCombo.GetFont());
 		int dropWidth = 0;
@@ -209,7 +212,7 @@ BOOL Cipc2019Dlg::OnInitDialog()
 		adapterDC.SelectObject(previousFont);
 		m_AdapterCombo.SetDroppedWidth(dropWidth + 2 * GetSystemMetrics(SM_CXVSCROLL));
 		m_AdapterCombo.SetCurSel(0);
-		OnAdapterChanged(); // 목적지 설정 전에도 자신의 MAC을 볼 수 있다.
+		OnAdapterChanged(); // [assignment4] 목적지 설정 전에도 자신의 MAC을 볼 수 있다.
 	} else SetDlgItemText(IDC_STATIC_NETWORK_STATUS, m_NI->GetError());
 #else
 	// 기존 IPC 모드에서는 네트워크/파일 전송용 컨트롤을 사용하지 않는다.
@@ -277,7 +280,7 @@ HCURSOR Cipc2019Dlg::OnQueryDragIcon()
 void Cipc2019Dlg::OnBnClickedButtonSend()
 {
 #if USE_NPCAP_STACK
-	// A4 raw Ethernet 프로토콜에는 ACK가 없으므로 아래 IPC 타이머를 시작하지 않는다.
+	// [assignment4] 네트워크 채팅 송신을 호출한다. 현재 프로토콜에는 ACK가 없어 IPC ACK 타이머는 시작하지 않는다.
 	SendData();
 	return;
 #endif
@@ -314,6 +317,7 @@ void Cipc2019Dlg::SetRegstryMessage()
 void Cipc2019Dlg::SendData()
 {
 #if USE_NPCAP_STACK
+	// [assignment4] 기존 SendData 진입점에서 네트워크용 UTF-8 채팅 송신 함수로 분기한다.
 	SendNetworkChat();
 	return;
 #endif
@@ -366,7 +370,7 @@ BOOL Cipc2019Dlg::PreTranslateMessage(MSG* pMsg)
 		case VK_RETURN:
 			if (::GetDlgCtrlID(::GetFocus()) == IDC_EDIT3)
 				OnBnClickedButtonSend();
-			return TRUE; // Enter가 기본 IDOK로 전달되어 Dialog가 닫히는 것을 방지한다.
+			return TRUE; // [assignment4] Enter가 기본 IDOK로 전달되어 Dialog가 닫히는 것을 방지한다.
 		case VK_ESCAPE: return FALSE;
 		}
 		break;
@@ -379,6 +383,7 @@ BOOL Cipc2019Dlg::PreTranslateMessage(MSG* pMsg)
 void Cipc2019Dlg::SetDlgState(int state)
 {
 #if USE_NPCAP_STACK
+	// [assignment4] 네트워크 모드의 주소 잠금·브로드캐스트·송신 가능 상태를 전용 UI 처리 함수로 전달한다.
 	SetNetworkDlgState(state);
 	return;
 #endif
@@ -436,8 +441,8 @@ void Cipc2019Dlg::SetDlgState(int state)
 void Cipc2019Dlg::EndofProcess()
 {
 #if USE_NPCAP_STACK
-	// 하위 객체를 지우기 전에 두 worker를 join한다. 종료 중에도 PostMessage는
-	// 큐에 남을 수 있으므로 OnDestroy에서 해당 데이터의 소유권을 마저 정리한다.
+	// [assignment4] 하위 객체를 지우기 전에 두 worker를 join한다. 종료 중에도 PostMessage는
+	// [assignment4] 큐에 남을 수 있으므로 OnDestroy에서 해당 데이터의 소유권을 마저 정리한다.
 	if (m_FileApp) m_FileApp->StopTransfer();
 	if (m_NI) m_NI->CloseAdapter();
 	if (m_FileApp) m_FileApp->SetNotifyWindow(NULL);
@@ -449,7 +454,7 @@ void Cipc2019Dlg::EndofProcess()
 LRESULT Cipc2019Dlg::OnRegSendMsg(WPARAM wParam, LPARAM lParam)
 {
 #if USE_NPCAP_STACK
-	return 0; // 기존 IPC 알림을 수신해도 A4 스택의 파일/타이머 상태를 바꾸지 않는다.
+	return 0; // [assignment4] 기존 IPC 알림을 수신해도 A4 스택의 파일/타이머 상태를 바꾸지 않는다.
 #endif
 	//////////////////////// fill the blank ///////////////////////////////
 	if (m_nAckReady) {
@@ -477,7 +482,7 @@ LRESULT Cipc2019Dlg::OnRegAckMsg(WPARAM wParam, LPARAM lParam)
 void Cipc2019Dlg::OnTimer(UINT_PTR nIDEvent)
 {
 #if USE_NPCAP_STACK
-    // 새 UI 타이머를 기존 ACK 타임아웃 처리와 분리한다. 패킷이 없어도 대기 시간이 증가한다.
+    // [assignment4] 새 UI 타이머를 기존 ACK 타임아웃 처리와 분리한다. 패킷이 없어도 대기 시간이 증가한다.
     if (nIDEvent == FILE_UI_TIMER_ID) {
         RefreshFileView(m_sendView, m_FileProgress, IDC_STATIC_FILE_STATUS);
         RefreshFileView(m_receiveView, m_FileReceiveProgress, IDC_EDIT_FILE_RECEIVE_STATUS);
@@ -497,6 +502,7 @@ void Cipc2019Dlg::OnTimer(UINT_PTR nIDEvent)
 void Cipc2019Dlg::OnBnClickedButtonAddr()
 {
 #if USE_NPCAP_STACK
+	// [assignment4] 주소 설정 버튼을 MAC 기반 네트워크 설정·해제 동작에 연결한다.
 	SetNetworkAddress();
 	return;
 #endif
@@ -539,12 +545,12 @@ void Cipc2019Dlg::OnBnClickedCheckToall()
 }
 
 
-// [과제 4 추가] 기존 UI/IPC 함수는 위에 보존하고 MAC 설정·파일 기능만 확장한다.
+// [assignment4] 어댑터 선택이 바뀌면 해당 장치를 열어 조회한 MAC 주소를 Source 입력창에 표시한다.
 void Cipc2019Dlg::OnAdapterChanged()
 {
 	if (!m_NI || m_bSendReady) return;
-	// 어댑터 선택의 결과는 오른쪽 네트워크 상태에만 표시한다.
-	// 아래 파일 상태 컨트롤은 OnFileStatus()가 송수신 진행률과 결과를 표시할 때 사용한다.
+	// [assignment4] 어댑터 선택의 결과는 오른쪽 네트워크 상태에만 표시한다.
+	// [assignment4] 아래 파일 상태 컨트롤은 OnFileStatus()가 송수신 진행률과 결과를 표시할 때 사용한다.
 	if (!m_NI->OpenAdapter(m_AdapterCombo.GetCurSel())) {
 		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, m_NI->GetError());
 		m_sourceMac.Empty();
@@ -554,10 +560,12 @@ void Cipc2019Dlg::OnAdapterChanged()
 		m_sourceMac = FormatMac(address);
 		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("상대 PC의 MAC 주소를 입력하고 설정을 누르십시오."));
 	}
-	// UpdateData(FALSE)로 사용자가 입력 중인 목적지/채팅까지 덮어쓰지 않는다.
+	// [assignment4] UpdateData(FALSE)로 사용자가 입력 중인 목적지/채팅까지 덮어쓰지 않는다.
 	SetDlgItemText(IDC_EDIT_SRC, m_sourceMac);
 }
 
+// [assignment4] 목적지 MAC 또는 브로드캐스트 주소를 설정하고 조회한 Source MAC을 Ethernet에 적용한 뒤 수신을 시작한다.
+// [assignment4] 재설정 시에는 수신 스레드를 종료한 다음 미완성 조각과 파일 상태를 정리한다.
 void Cipc2019Dlg::SetNetworkAddress()
 {
 	if (m_bSendReady) {
@@ -567,7 +575,7 @@ void Cipc2019Dlg::SetNetworkAddress()
 		m_NI->CloseAdapter();
 		m_ChatApp->ResetNetworkReceive();
 		m_FileApp->ResetReceive();
-        // NI를 종료한 뒤 큐의 마지막 상태부터 처리해 진행 중 수신이 영원히 남지 않게 한다.
+        // [assignment4] NI를 종료한 뒤 큐의 마지막 상태부터 처리해 진행 중 수신이 영원히 남지 않게 한다.
         MSG pending;
         while (::PeekMessage(&pending, m_hWnd, WM_FILE_STATUS, WM_FILE_STATUS, PM_REMOVE))
             OnFileStatus(pending.wParam, pending.lParam);
@@ -606,6 +614,7 @@ void Cipc2019Dlg::SetNetworkAddress()
 	UpdateData(FALSE);
 }
 
+// [assignment4] 설정 완료 여부에 따라 채팅·파일 전송 버튼을 활성화하고 송수신 중에는 어댑터·주소 변경을 제한한다.
 void Cipc2019Dlg::SetNetworkDlgState(int state)
 {
 	BOOL broadcast = ((CButton*)GetDlgItem(IDC_CHECK_TOALL))->GetCheck();
@@ -627,12 +636,14 @@ void Cipc2019Dlg::SetNetworkDlgState(int state)
 	}
 }
 
+// [assignment4] 입력 문자열을 UTF-8 바이트로 바꿔 ChatApp에 전달하고 로컬 송신 로그를 표시한다.
+// [assignment4] 헤더 길이 제한은 화면의 글자 수가 아니라 변환된 UTF-8 바이트 수로 검사한다.
 void Cipc2019Dlg::SendNetworkChat()
 {
 	UpdateData(TRUE);
 	if (!m_bSendReady || m_stMessage.IsEmpty()) return;
-	// 문자열 문자 수와 네트워크 바이트 수는 다르다. 한글도 UTF-8 바이트로 바꾼 뒤
-	// 그 바이트 길이를 헤더에 넣고, 수신 시 전체를 모은 다음 한 번만 역변환한다.
+	// [assignment4] 문자열 문자 수와 네트워크 바이트 수는 다르다. 한글도 UTF-8 바이트로 바꾼 뒤
+	// [assignment4] 그 바이트 길이를 헤더에 넣고, 수신 시 전체를 모은 다음 한 번만 역변환한다.
 	CStringA utf8(CT2A(m_stMessage, CP_UTF8));
 	if (utf8.GetLength() > CHAT_MAX_MESSAGE_SIZE) {
 		AfxMessageBox(_T("과제 헤더의 전체 길이는 UTF-8 기준 65535 bytes까지입니다.")); return;
@@ -643,12 +654,13 @@ void Cipc2019Dlg::SendNetworkChat()
 	CString line;
 	line.Format(_T("[송신 %s -> %s]\r\n%s"), static_cast<LPCTSTR>(m_sourceMac),
 		static_cast<LPCTSTR>(m_destinationMac), static_cast<LPCTSTR>(m_stMessage));
-	AppendChatMessage(line); // 이 표시는 로컬 송신 표시이며 상대 수신 ACK가 아니다.
+	AppendChatMessage(line); // [assignment4] 이 표시는 로컬 송신 표시이며 상대 수신 ACK가 아니다.
 	m_stMessage.Empty();
 	SetDlgItemText(IDC_EDIT_MSG, m_stMessage);
 	GetDlgItem(IDC_EDIT_MSG)->SetFocus();
 }
 
+// [assignment4] ChatApp에서 완성한 UTF-8 메시지를 문자열로 복원하고 송신자 MAC과 함께 UI 메시지 큐로 전달한다.
 BOOL Cipc2019Dlg::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
 	if (!payload || !source || length <= 0) return FALSE;
@@ -657,12 +669,13 @@ BOOL Cipc2019Dlg::Receive(unsigned char* payload, int length, const unsigned cha
 	CString sender = FormatMac(source);
 	CString* line = new CString;
 	line->Format(_T("[수신 %s]\r\n%s"), static_cast<LPCTSTR>(sender), static_cast<LPCTSTR>(message));
-	// worker에서 CListBox를 직접 조작하지 않는다. UI가 이 문자열을 출력하고 해제한다.
-    // [표시 변경] 현재는 CEdit을 사용하며 UI 스레드로 넘기는 원칙은 동일하다.
+	// [assignment4] NI 작업 스레드는 채팅 컨트롤을 직접 수정하지 않고 출력할 문자열만 복사해 전달한다.
+    // [assignment4] 기존 MFC UI 스레드가 WM_CHAT_RECEIVED를 받아 CEdit에 표시하고 문자열 메모리를 해제한다.
 	if (!PostMessage(WM_CHAT_RECEIVED, 0, reinterpret_cast<LPARAM>(line))) { delete line; return FALSE; }
 	return TRUE;
 }
 
+// [assignment4] 기존 MFC UI 스레드에서 수신 문자열을 채팅창에 추가하고 전달받은 힙 메모리를 해제한다.
 LRESULT Cipc2019Dlg::OnChatReceived(WPARAM wParam, LPARAM lParam)
 {
 	CString* line = reinterpret_cast<CString*>(lParam);
@@ -670,6 +683,7 @@ LRESULT Cipc2019Dlg::OnChatReceived(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+// [assignment4] 파일 선택 대화상자에서 전송할 파일의 전체 경로를 받아 경로 표시창에 반영한다.
 void Cipc2019Dlg::OnFileBrowse()
 {
 	CFileDialog dialog(TRUE, NULL, NULL, OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, _T("All files (*.*)|*.*||"), this);
@@ -679,6 +693,7 @@ void Cipc2019Dlg::OnFileBrowse()
 	}
 }
 
+// [assignment4] 주소 설정과 중복 송신 여부를 확인하고 송신 표시만 초기화한 뒤 FileApp 작업 스레드를 시작한다.
 void Cipc2019Dlg::OnFileSend()
 {
 	if (!m_FileApp || !m_bSendReady || m_FileApp->IsSending()) return;
@@ -694,6 +709,8 @@ void Cipc2019Dlg::OnFileSend()
 	}
 }
 
+// [assignment4] PostMessage로 받은 상태를 송신·수신별 UI 스냅샷에 복사하고 해당 진행창만 갱신한다.
+// [assignment4] 완료·오류를 채팅 로그에 남기며 송신 작업이 끝난 경우에만 파일 전송 버튼을 다시 활성화한다.
 LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
 {
 	FILE_STATUS* status = reinterpret_cast<FILE_STATUS*>(lParam);
@@ -704,11 +721,11 @@ LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
         view = FILE_VIEW();
         view.sampleAtMs = status->progress.startedAtMs;
     }
-    view.latest = *status; // worker가 넘긴 스냅샷을 복사하고 원본은 아래에서 해제한다.
+    view.latest = *status; // [assignment4] worker가 넘긴 스냅샷을 복사하고 원본은 아래에서 해제한다.
     view.hasStatus = TRUE;
     RefreshFileView(view, status->sending ? m_FileProgress : m_FileReceiveProgress,
         status->sending ? IDC_STATIC_FILE_STATUS : IDC_EDIT_FILE_RECEIVE_STATUS);
-    // 완료 경로/오류 문구도 줄바꿈 채팅 영역에 남겨 상태창이 바뀐 뒤 다시 확인할 수 있게 한다.
+    // [assignment4] 완료 경로/오류 문구도 줄바꿈 채팅 영역에 남겨 상태창이 바뀐 뒤 다시 확인할 수 있게 한다.
     if (status->finished) AppendChatMessage(status->message);
 	if (status->sending && status->finished)
 		GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(m_bSendReady);
@@ -716,12 +733,13 @@ LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+// [assignment4] UI 갱신 타이머를 멈추고 송신·수신 스레드를 종료한 뒤 남은 메시지 데이터와 Layer를 정리한다.
 void Cipc2019Dlg::OnDestroy()
 {
     KillTimer(FILE_UI_TIMER_ID);
 	EndofProcess();
-	// worker를 모두 종료했으므로 이제 큐에 새 알림은 들어오지 않는다.
-	// 아직 UI가 처리하지 못한 heap 데이터도 직접 해제하여 종료 시 누수를 막는다.
+	// [assignment4] worker를 모두 종료했으므로 이제 큐에 새 알림은 들어오지 않는다.
+	// [assignment4] 아직 UI가 처리하지 못한 heap 데이터도 직접 해제하여 종료 시 누수를 막는다.
 	MSG message;
 	while (::PeekMessage(&message, m_hWnd, WM_CHAT_RECEIVED, WM_CHAT_RECEIVED, PM_REMOVE))
 		delete reinterpret_cast<CString*>(message.lParam);
@@ -730,12 +748,13 @@ void Cipc2019Dlg::OnDestroy()
 	CDialogEx::OnDestroy();
 }
 
+// [assignment4] 하이픈 또는 콜론으로 구분된 MAC 문자열을 검증하여 Ethernet 주소 6바이트로 변환한다.
 BOOL Cipc2019Dlg::ParseMac(const CString& input, unsigned char* address)
 {
 	CString text(input);
 	text.Trim(); text.Replace(_T('-'), _T(':'));
 	if (text.GetLength() != 17) return FALSE;
-	// 정확히 6개의 2자리 16진수만 받는다. sscanf의 부호/공백/초과 문자 허용을 피한다.
+	// [assignment4] 정확히 6개의 2자리 16진수만 받는다. sscanf의 부호/공백/초과 문자 허용을 피한다.
 	const CString digits = _T("0123456789ABCDEF");
 	text.MakeUpper();
 	for (int i = 0; i < ETHERNET_ADDRESS_SIZE; ++i) {
@@ -746,6 +765,7 @@ BOOL Cipc2019Dlg::ParseMac(const CString& input, unsigned char* address)
 	return TRUE;
 }
 
+// [assignment4] MAC 6바이트를 두 자리 대문자 16진수와 하이픈으로 구성된 표시 문자열로 변환한다.
 CString Cipc2019Dlg::FormatMac(const unsigned char* address)
 {
 	CString text;
@@ -754,8 +774,8 @@ CString Cipc2019Dlg::FormatMac(const unsigned char* address)
 	return text;
 }
 
-// 수평 스크롤 없는 ES_MULTILINE 편집창이 창 너비에 맞춰 줄을 바꾼다.
-// 읽기 전용이어도 ReplaceSel로 프로그램의 로그를 추가할 수 있고 사용자는 복사할 수 있다.
+// [assignment4] 수평 스크롤 없는 ES_MULTILINE 편집창이 창 너비에 맞춰 줄을 바꾼다.
+// [assignment4] 읽기 전용이어도 ReplaceSel로 프로그램의 로그를 추가할 수 있고 사용자는 복사할 수 있다.
 void Cipc2019Dlg::AppendChatMessage(const CString& message)
 {
     CString text(message);
@@ -769,6 +789,7 @@ void Cipc2019Dlg::AppendChatMessage(const CString& message)
     m_ListChat.LineScroll(m_ListChat.GetLineCount());
 }
 
+// [assignment4] 파일 처리량과 전송 속도의 바이트 수를 B·KiB·MiB·GiB 단위의 표시 문자열로 변환한다.
 CString Cipc2019Dlg::FormatFileSize(uint64_t bytes)
 {
     CString text;
@@ -779,6 +800,7 @@ CString Cipc2019Dlg::FormatFileSize(uint64_t bytes)
     return text;
 }
 
+// [assignment4] 밀리초 단위 측정 시간을 분:초 형식으로 바꿔 경과 시간과 예상 남은 시간에 사용한다.
 CString Cipc2019Dlg::FormatDuration(ULONGLONG milliseconds)
 {
     unsigned long long seconds = milliseconds / 1000;
@@ -787,6 +809,8 @@ CString Cipc2019Dlg::FormatDuration(ULONGLONG milliseconds)
     return text;
 }
 
+// [assignment4] 방향별 실제 처리량으로 진행률·최근 속도·경과 시간·예상 남은 시간을 계산한다.
+// [assignment4] 기존 UI 스레드의 타이머로 정체 시간도 갱신하며 5초 정체 표시는 통신 실패나 ACK 판정으로 사용하지 않는다.
 void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int statusId)
 {
     if (!view.hasStatus) return;
@@ -796,14 +820,14 @@ void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int 
     ULONGLONG elapsed = now >= count.startedAtMs ? now - count.startedAtMs : 0;
     ULONGLONG idle = now >= count.lastProgressAtMs ? now - count.lastProgressAtMs : 0;
     ULONGLONG sampleTime = now >= view.sampleAtMs ? now - view.sampleAtMs : 0;
-    // 최근 약 1초의 실제 바이트 증가량으로 계산한다. 정체되면 다음 샘플은 0 B/s가 된다.
+    // [assignment4] 최근 약 1초의 실제 바이트 증가량으로 계산한다. 정체되면 다음 샘플은 0 B/s가 된다.
     if (sampleTime >= FILE_RATE_SAMPLE_MS) {
         uint64_t delta = count.completedBytes >= view.sampleBytes ? count.completedBytes - view.sampleBytes : 0;
         view.bytesPerSecond = static_cast<double>(delta) * 1000.0 / sampleTime;
         view.sampleAtMs = now;
         view.sampleBytes = count.completedBytes;
     }
-    // 완료/오류 뒤에는 시간과 속도가 계속 변하지 않도록 해당 작업의 평균을 보여준다.
+    // [assignment4] 완료/오류 뒤에는 시간과 속도가 계속 변하지 않도록 해당 작업의 평균을 보여준다.
     double rate = status.finished ? (elapsed ? count.completedBytes * 1000.0 / elapsed : 0) : view.bytesPerSecond;
     double percent = count.totalBytes ? 100.0 * count.completedBytes / count.totalBytes :
         (status.finished && status.percent == 100 ? 100.0 : 0.0);
@@ -811,7 +835,7 @@ void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int 
     CString state = status.message;
     CString remaining;
     if (!status.finished && count.completedBytes == count.totalBytes && count.totalBytes) {
-        // 100%는 데이터 바이트 기준이다. END 검증/이름 변경 전에는 수신 완료로 표시하지 않는다.
+        // [assignment4] 100%는 데이터 바이트 기준이다. END 검증/이름 변경 전에는 수신 완료로 표시하지 않는다.
         state = status.sending ? _T("데이터 송신 완료 · 마무리 중") : _T("데이터 수신 완료 · 종료 확인 대기");
         remaining = _T("마무리 대기");
     } else if (status.finished) remaining = _T("작업 종료");
@@ -823,7 +847,7 @@ void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int 
         remaining = _T("약 ") + FormatDuration(seconds * 1000) + _T(" 남음");
     }
     if (!status.finished && idle >= FILE_PROGRESS_STALL_MS) {
-        // ACK나 실패 판정이 아니다. 마지막 바이트 처리 이후의 정체 시간만 알려준다.
+        // [assignment4] ACK나 실패 판정이 아니다. 마지막 바이트 처리 이후의 정체 시간만 알려준다.
         CString waiting;
         waiting.Format(status.sending ? _T(" · %llu초 동안 추가 송신 없음") : _T(" · %llu초 동안 추가 수신 없음"),
             static_cast<unsigned long long>(idle / 1000));
@@ -837,10 +861,11 @@ void Cipc2019Dlg::RefreshFileView(FILE_VIEW& view, CProgressCtrl& progress, int 
         static_cast<LPCTSTR>(FormatDuration(elapsed)), static_cast<LPCTSTR>(remaining));
     CString displayed;
     GetDlgItemText(statusId, displayed);
-    // 완료 후에는 같은 내용을 반복 설정하지 않아 사용자가 긴 경로를 스크롤/복사할 수 있다.
+    // [assignment4] 완료 후에는 같은 내용을 반복 설정하지 않아 사용자가 긴 경로를 스크롤/복사할 수 있다.
     if (displayed != text) SetDlgItemText(statusId, text);
 }
 
+// [assignment4] FileApp이 사용하는 ReceivedFiles 경로를 확보한 뒤 탐색기로 열어 수신 파일을 확인하게 한다.
 void Cipc2019Dlg::OnOpenReceivedFolder()
 {
     CString directory = CFileAppLayer::GetReceiveDirectory();
