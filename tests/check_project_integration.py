@@ -35,8 +35,10 @@ for name in set(re.findall(r'\b(?:IDC_|IDD_)\w+', resource)):
 dialogs = dict((name, (int(width), int(height), body)) for name, width, height, body in re.findall(
     r'(IDD_\w+) DIALOGEX \d+, \d+, (\d+), (\d+)\n.*?\nBEGIN\n(.*?)\nEND', resource, re.S))
 main_style = re.search(r'IDD_IPC2019_DIALOG DIALOGEX[^\n]+\nSTYLE ([^\n]+)', resource).group(1)
-for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX', 'WS_CLIPCHILDREN'):
+for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX'):
     assert style in main_style, f'Scrollable main window missing style: {style}'
+# [assignment6] group box 내부까지 부모 배경을 지워야 이동 전 입력칸/글자의 잔상이 남지 않는다.
+assert 'WS_CLIPCHILDREN' not in main_style, 'Group-box background must participate in scroll repaint'
 page_controls = {}
 for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG'):
     width, height, body = dialogs[name]

@@ -67,6 +67,10 @@ UI 스레드는 MFC의 기본 애플리케이션 스레드다. 별도로 구현�
 
 기존 과제 3/4 경로와 주석은 보존하고 `USE_IP_STACK=1`에서 IP 계층을 사용한다. 아래는 이 브랜치의 현재 동작이며, 위 과제 4 절의 EtherType 및 MTU 설명은 `USE_IP_STACK=0` 기준이다. 추가/변경 기능에는 `[assignment6]` 주석을 달았다. 프로토콜 상수는 `stdafx.h`에 모았다.
 
+강의자료 23·29쪽의 기본 ARP 실습은 어댑터 선택, 내 IP 설정, Request/Reply와 캐시 생성·갱신·만료를 중심으로 한다. MAC은 `NILayer::QueryMac()`이 Packet32의 `OID_802_3_CURRENT_ADDRESS`로 조회하므로 상대 IP를 입력하기 전에도 표시된다. 프로그램의 내 IP는 직접 입력하며 Windows IP를 자동으로 가져오거나 변경하지 않는다. ARP 표는 자신을 대상으로 하는 Request/Reply나 유효한 GARP 수신으로도 학습되므로 요청 입력칸이 비어 있어도 행이 생길 수 있다.
+
+강의자료 30쪽에는 Basic ARP/PARP/GARP 데모가 명시되어 있지만, 아래 두 NIC의 실제 IP 중계, Next hop, TTL·ICMP 처리와 RFC 5227 주소 충돌 검사는 기본 ARP 실습보다 확장한 부분이다. 기본 ARP 확인에는 단일 NIC를 사용한다. GARP 광고와 충돌 검사는 별개 기능으로 설명해야 한다.
+
 ### 계층과 식별값
 
 - 채팅/파일: Dialog → ChatApp/FileApp → IP → Ethernet → NI. IP Protocol은 각각 253/254(실험용)이며 TCP/UDP 헤더를 가장하지 않는다.
@@ -128,5 +132,6 @@ Npcap SDK 경로는 `NPCAP_SDK_DIR`을 우선 사용하고, 없으면 `C:\NpcapS
 - 일반 영역의 마우스 휠은 전체 화면을 세로로, Shift+휠은 가로로 이동한다. 채팅/상태 편집창, ARP 표, 어댑터 드롭다운 위에서는 해당 컨트롤의 휠 처리를 유지한다.
 - Tab/Shift+Tab으로 화면 밖의 입력칸을 선택하면 자동으로 보이게 한다. ARP 자식 Dialog의 포커스 변경도 기존 UI 타이머가 확인하며, 포커스가 그대로인 동안 사용자가 보는 스크롤 위치를 되돌리지 않는다.
 - `ipc2019DlgScroll.cpp`가 창/컨트롤을 이동하고 `DialogScrollLayout.h`가 두 축의 스크롤 범위를 계산한다. 새 구현에는 `[assignment6]` 주석을 달았으며 기존 과제 4 주석/ID를 유지했다.
+- 스크롤 시 이전 화면 픽셀을 복사하지 않고, 부모 배경과 자식창/테두리를 즉시 다시 그린다. main의 group box 내부 배경도 지울 수 있도록 `WS_CLIPCHILDREN`을 사용하지 않는다. 이 수정은 화면 잔상에 대한 것으로 프로토콜 동작은 바꾸지 않는다.
 
 `python tests/run_dialog_scroll_tests.py`로 216개의 창 크기/100~250% 가상 배율 조건, 끝까지 접근 가능한 범위, 확대 후 offset 복원, 32비트 thumb, 포커스 표시를 검사한다. 실제 scroll cpp의 선언/구문도 최소 Win32/MFC 선언 대체물에서 검사하여 LONG/int 및 Windows min/max 매크로 충돌을 확인한다. 이 검사는 실제 Windows/MFC 빌드, 배율별 렌더링이나 마우스/키보드 동작을 실행한 검증이 아니므로 Visual Studio에서 다시 빌드하고 작은 화면에서 최종 확인해야 한다.
