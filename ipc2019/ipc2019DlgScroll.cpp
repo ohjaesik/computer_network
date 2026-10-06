@@ -73,7 +73,9 @@ void Cipc2019Dlg::UpdateDialogScroll()
 // [assignment6] 숨겨진 채팅/ARP 화면도 이동하지만 Show/Hide 및 Z-order는 건드리지 않는다.
 void Cipc2019Dlg::PositionScrollChildren()
 {
-    const UINT flags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW;
+    // [assignment6] 이동 전 화면을 복사하면 group box 안의 입력칸/글자가 이전 위치에 남을 수 있다.
+    // [assignment6] SWP_NOCOPYBITS로 이전 픽셀을 버리고, 모든 child 이동이 끝난 후 한 번에 다시 그린다.
+    const UINT flags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOCOPYBITS;
     HDWP batch = ::BeginDeferWindowPos(static_cast<int>(m_scrollChildren.size()));
     for (const auto& child : m_scrollChildren) {
         if (!::IsWindow(child.window) || ::GetParent(child.window) != m_hWnd) continue;
@@ -87,7 +89,9 @@ void Cipc2019Dlg::PositionScrollChildren()
             ::SetWindowPos(child.window, nullptr, child.original.left - m_scrollOffset.x,
                 child.original.top - m_scrollOffset.y, 0, 0, flags);
     }
-    RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+    // [assignment6] client 배경뿐 아니라 Edit/List의 테두리와 ARP 자식 Dialog 내부까지 무효화한다.
+    // [assignment6] RDW_UPDATENOW로 이번 스크롤의 WM_ERASEBKGND/WM_PAINT를 끝내 이전 화면 잔상을 지운다.
+    RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 void Cipc2019Dlg::ScrollDialogTo(int x, int y)
