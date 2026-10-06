@@ -157,6 +157,12 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+    // [assignment6] 창 크기 변경과 외부 스크롤바/휠을 UI 스레드에서 처리한다.
+    ON_WM_SIZE()
+    ON_WM_GETMINMAXINFO()
+    ON_WM_VSCROLL()
+    ON_WM_HSCROLL()
+    ON_WM_MOUSEWHEEL()
 	ON_BN_CLICKED(IDC_BUTTON_ADDR, &Cipc2019Dlg::OnBnClickedButtonAddr)
 	ON_BN_CLICKED(IDC_BUTTON_SEND, &Cipc2019Dlg::OnBnClickedButtonSend)
 	ON_WM_TIMER()
@@ -259,6 +265,8 @@ BOOL Cipc2019Dlg::OnInitDialog()
 #if USE_IP_STACK
     InitIpUi();
 #endif
+    // [assignment6] ARP 자식창을 만든 뒤 전체 컨트롤 위치를 기록하고 모니터 작업 영역에 맞춘다.
+    InitDialogScroll();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -400,6 +408,7 @@ BOOL Cipc2019Dlg::Receive(unsigned char* ppayload)
 BOOL Cipc2019Dlg::PreTranslateMessage(MSG* pMsg)
 {
 	// TODO: Add your specialized code here and/or call the base class
+    if (PreTranslateDialogScroll(pMsg)) return TRUE;
 	switch (pMsg->message)
 	{
 	case WM_KEYDOWN:
@@ -414,7 +423,10 @@ BOOL Cipc2019Dlg::PreTranslateMessage(MSG* pMsg)
 		break;
 	}
 
-	return CDialog::PreTranslateMessage(pMsg);
+    const BOOL handled = CDialog::PreTranslateMessage(pMsg);
+    // [assignment6] Tab/Shift+Tab으로 화면 밖의 설정을 선택해도 자동으로 보이게 스크롤한다.
+    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_TAB) RevealFocusedControl();
+    return handled;
 }
 
 
@@ -535,6 +547,9 @@ void Cipc2019Dlg::OnTimer(UINT_PTR nIDEvent)
 #if USE_NPCAP_STACK
     // [assignment4] 새 UI 타이머를 기존 ACK 타임아웃 처리와 분리한다. 패킷이 없어도 대기 시간이 증가한다.
     if (nIDEvent == FILE_UI_TIMER_ID) {
+        // [assignment6] ARP 자식 Dialog가 Tab을 먼저 처리한 경우도 포커스 변경 때 한 번만 화면 안으로 이동한다.
+        // [assignment6] 휠/스크롤바로 보는 위치는 포커스가 그대로이면 타이머가 되돌리지 않는다.
+        if (::GetFocus() != m_lastScrollFocus) RevealFocusedControl();
 #if USE_IP_STACK
         PollIpNetwork();
 #endif
