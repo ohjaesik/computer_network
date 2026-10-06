@@ -36,13 +36,41 @@
 #define IDC_EDIT_FILE_RECEIVE_STATUS    1015
 #define IDC_BUTTON_RECEIVED_FOLDER      1016
 
+// [assignment6] 화면 전환과 ARP/Proxy/GARP 컨트롤 ID. 기존 ID는 유지한다.
+#define IDD_ARP_DIALOG                 131
+#define IDC_PAGE_CHAT                    1100
+#define IDC_PAGE_ARP                     1101
+#define IDC_EDIT_SOURCE_IP               1102
+#define IDC_ARP_CACHE                    1103
+#define IDC_PROXY_CACHE                  1104
+#define IDC_ARP_TARGET                   1105
+#define IDC_ARP_SEND                     1106
+#define IDC_ARP_DELETE                   1107
+#define IDC_ARP_CLEAR                    1108
+#define IDC_PROXY_IP                     1109
+#define IDC_PROXY_ADD                    1110
+#define IDC_PROXY_DELETE                 1111
+#define IDC_GARP_MAC                     1112
+#define IDC_GARP_SEND                    1113
+#define IDC_ARP_STATUS                   1114
+#define IDC_COMBO_ADAPTER2               1115
+#define IDC_EDIT_SOURCE_IP2              1116
+#define IDC_EDIT_SOURCE_MAC2             1117
+#define IDC_EDIT_SUBNET_MASK             1118
+#define IDC_EDIT_SUBNET_MASK2            1119
+#define IDC_ENABLE_ROUTING               1120
+#define IDC_ARP_INTERFACE                1121
+#define IDC_PROXY_OUTGOING               1122
+#define IDC_PROXY_NEXT_HOP               1123
+#define IDC_ROUTER_STATUS                1124
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        130
+#define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1017
+#define _APS_NEXT_CONTROL_VALUE         1125
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

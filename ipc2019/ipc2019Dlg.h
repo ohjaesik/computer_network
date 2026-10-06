@@ -10,6 +10,10 @@
 #include "NILayer.h"
 #include "FileAppLayer.h"
 #include "FileLayer.h"	// Added by ClassView
+#include "IPLayer.h"
+#include "ARPLayer.h"
+#include "ARPDlg.h"
+#include "IPRouter.h"
 // Cipc2019Dlg 대화 상자
 // [assignment4] MFC Dialog와 CBaseLayer를 함께 상속하여 화면 객체도 프로토콜 스택의 상위 계층으로 연결한다.
 class Cipc2019Dlg : public CDialogEx, public CBaseLayer
@@ -132,4 +136,35 @@ private:
 	void SendNetworkChat();
 	static BOOL ParseMac(const CString& text, unsigned char* address);
 	static CString FormatMac(const unsigned char* address);
+
+    // [assignment6] 모든 화면은 하나의 IP/ARP/NI 인스턴스를 공유한다. 화면 선택은 표시만 바꾼다.
+    // [assignment6] 위 설명의 단일 NIC 기본 모드는 유지하며, PARP 중계 모드만 두 번째 스택을 추가로 공유한다.
+    CIPLayer* m_IP = nullptr;
+    CARPLayer* m_ARP = nullptr;
+    // [assignment6] PARP는 양쪽 LAN이 필요하므로 두 번째 NI/Ethernet/IP/ARP 인스턴스를 소유한다.
+    CNILayer* m_NI2 = nullptr;
+    CEthernetLayer* m_Ethernet2 = nullptr;
+    CIPLayer* m_IP2 = nullptr;
+    CARPLayer* m_ARP2 = nullptr;
+    CIPRouter m_router;
+    CComboBox m_AdapterCombo2;
+    bool m_secondConnected = false;
+    CARPDlg m_arpDialog;
+    std::vector<HWND> m_chatControls;
+    CString m_sourceIp, m_pendingFile;
+    ULONGLONG m_fileResolveStarted = 0;
+    void InitIpUi();
+    void ShowIpPage(bool arp);
+    void SetIpNetworkAddress();
+    void RefreshIpControls();
+    bool PrepareIpDestination();
+    void SendIpFile();
+    void StartIpFile(const CString& path);
+    void PollIpNetwork();
+    afx_msg void OnShowChatPage();
+    afx_msg void OnShowArpPage();
+    afx_msg LRESULT OnArpChanged(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnNetworkEvent(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnSecondAdapterChanged();
+    afx_msg void OnRoutingModeChanged();
 };

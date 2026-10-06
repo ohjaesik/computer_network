@@ -7,6 +7,7 @@
 #include "framework.h"
 #include "ipc2019.h"
 #include "ipc2019Dlg.h"
+#include "NetworkAddress.h"
 #include "afxdialogex.h"
 #include <afxdlgs.h> // [assignment4] 파일 선택 창(CFileDialog) 선언
 
@@ -79,6 +80,16 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	// [assignment4] NI가 실제 전송을 맡고 FileApp이 파일 내용을 분할한다. 기존 FileLayer와는 역할이 다르다.
 	m_LayerMgr.AddLayer(new CNILayer("NI"));
 	m_LayerMgr.AddLayer(new CFileAppLayer("FileApp"));
+#if USE_IP_STACK
+	// [assignment6] IP는 앱 다중화, ARP는 주소 해석과 Proxy/GARP를 담당한다.
+	m_LayerMgr.AddLayer(new CIPLayer("IP"));
+	m_LayerMgr.AddLayer(new CARPLayer("ARP"));
+	// [assignment6] 원래 스택은 보존하고 PARP의 다른 물리 LAN용 스택을 추가한다.
+	m_LayerMgr.AddLayer(new CNILayer("NI2"));
+	m_LayerMgr.AddLayer(new CEthernetLayer("Ethernet2"));
+	m_LayerMgr.AddLayer(new CIPLayer("IP2"));
+	m_LayerMgr.AddLayer(new CARPLayer("ARP2"));
+#endif
 #else
 	m_LayerMgr.AddLayer(new CFileLayer("File"));
 #endif
@@ -88,7 +99,21 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 #if USE_NPCAP_STACK
 	// [assignment4] Dialog의 단일 Under 포인터는 ChatApp에 둔다. 파일 송신은 m_FileApp으로 호출하므로
 	// [assignment4] FileApp -> Dialog 연결에는 '+'를 써서 기존 Under 포인터를 덮어쓰지 않는다.
+	#if USE_IP_STACK
+	// [assignment6] Chat/File의 Under는 IP, IP와 ARP의 Under는 Ethernet이다.
+	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *IP ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) *ARP ) )");
+	m_IP = static_cast<CIPLayer*>(m_LayerMgr.GetLayer("IP"));
+	m_ARP = static_cast<CARPLayer*>(m_LayerMgr.GetLayer("ARP"));
+	m_LayerMgr.ConnectLayers("NI2 ( *Ethernet2 ( *IP2 ( +ChatApp +FileApp ) *ARP2 ) )");
+	m_NI2 = static_cast<CNILayer*>(m_LayerMgr.GetLayer("NI2"));
+	m_Ethernet2 = static_cast<CEthernetLayer*>(m_LayerMgr.GetLayer("Ethernet2"));
+	m_IP2 = static_cast<CIPLayer*>(m_LayerMgr.GetLayer("IP2"));
+	m_ARP2 = static_cast<CARPLayer*>(m_LayerMgr.GetLayer("ARP2"));
+	static_cast<CEthernetLayer*>(m_LayerMgr.GetLayer("Ethernet"))->SetProtocolLayers(m_IP,m_ARP);
+	m_Ethernet2->SetProtocolLayers(m_IP2,m_ARP2);
+#else
 	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) )");
+#endif
 	m_NI = (CNILayer*)m_LayerMgr.GetLayer("NI");
 	m_Ethernet = (CEthernetLayer*)m_LayerMgr.GetLayer("Ethernet");
 	m_FileApp = (CFileAppLayer*)m_LayerMgr.GetLayer("FileApp");
@@ -109,6 +134,9 @@ void Cipc2019Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_DST, m_destinationMac);
 	DDX_Text(pDX, IDC_EDIT_FILE_PATH, m_filePath);
 	DDX_Control(pDX, IDC_COMBO_ADAPTER, m_AdapterCombo);
+#if USE_IP_STACK
+	DDX_Control(pDX, IDC_COMBO_ADAPTER2, m_AdapterCombo2);
+#endif
 	DDX_Control(pDX, IDC_PROGRESS_FILE, m_FileProgress);
     DDX_Control(pDX, IDC_PROGRESS_FILE_RECEIVE, m_FileReceiveProgress);
 #else
@@ -140,6 +168,13 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON_RECEIVED_FOLDER, &Cipc2019Dlg::OnOpenReceivedFolder)
 	ON_MESSAGE(WM_CHAT_RECEIVED, &Cipc2019Dlg::OnChatReceived)
 	ON_MESSAGE(WM_FILE_STATUS, &Cipc2019Dlg::OnFileStatus)
+    // [assignment6] 화면 전환과 NI 스레드의 ARP/IP 상태 알림을 기존 UI 스레드에서 처리한다.
+    ON_BN_CLICKED(IDC_PAGE_CHAT, &Cipc2019Dlg::OnShowChatPage)
+    ON_BN_CLICKED(IDC_PAGE_ARP, &Cipc2019Dlg::OnShowArpPage)
+    ON_MESSAGE(WM_ARP_CHANGED, &Cipc2019Dlg::OnArpChanged)
+    ON_MESSAGE(WM_NETWORK_EVENT, &Cipc2019Dlg::OnNetworkEvent)
+    ON_CBN_SELCHANGE(IDC_COMBO_ADAPTER2, &Cipc2019Dlg::OnSecondAdapterChanged)
+    ON_BN_CLICKED(IDC_ENABLE_ROUTING, &Cipc2019Dlg::OnRoutingModeChanged)
 
 	ON_REGISTERED_MESSAGE(nRegSendMsg, OnRegSendMsg)
 	//////////////////////// fill the blank ///////////////////////////////
@@ -221,6 +256,9 @@ BOOL Cipc2019Dlg::OnInitDialog()
 	GetDlgItem(IDC_COMBO_ADAPTER)->EnableWindow(FALSE);
 #endif
 	SetDlgState(IPC_INITIALIZING);
+#if USE_IP_STACK
+    InitIpUi();
+#endif
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -444,7 +482,20 @@ void Cipc2019Dlg::EndofProcess()
 	// [assignment4] 하위 객체를 지우기 전에 두 worker를 join한다. 종료 중에도 PostMessage는
 	// [assignment4] 큐에 남을 수 있으므로 OnDestroy에서 해당 데이터의 소유권을 마저 정리한다.
 	if (m_FileApp) m_FileApp->StopTransfer();
+#if USE_IP_STACK
+    m_router.Suspend();
+#endif
 	if (m_NI) m_NI->CloseAdapter();
+#if USE_IP_STACK
+    if (m_NI2) m_NI2->CloseAdapter();
+    m_router.Reset(); m_router.SetNotifyWindow(NULL);
+    // [assignment6] worker 종료 후 알림 대상을 분리한다. UI에는 계층 포인터를 남기지 않는다.
+    if (m_ARP) m_ARP->SetNotifyWindow(NULL);
+    if (m_IP) m_IP->SetNotifyWindow(NULL);
+    if (m_ARP2) m_ARP2->SetNotifyWindow(NULL);
+    if (m_IP2) m_IP2->SetNotifyWindow(NULL);
+    m_arpDialog.Attach(nullptr);
+#endif
 	if (m_FileApp) m_FileApp->SetNotifyWindow(NULL);
 #endif
 	m_LayerMgr.DeAllocLayer();
@@ -484,6 +535,9 @@ void Cipc2019Dlg::OnTimer(UINT_PTR nIDEvent)
 #if USE_NPCAP_STACK
     // [assignment4] 새 UI 타이머를 기존 ACK 타임아웃 처리와 분리한다. 패킷이 없어도 대기 시간이 증가한다.
     if (nIDEvent == FILE_UI_TIMER_ID) {
+#if USE_IP_STACK
+        PollIpNetwork();
+#endif
         RefreshFileView(m_sendView, m_FileProgress, IDC_STATIC_FILE_STATUS);
         RefreshFileView(m_receiveView, m_FileReceiveProgress, IDC_EDIT_FILE_RECEIVE_STATUS);
         return;
@@ -558,7 +612,11 @@ void Cipc2019Dlg::OnAdapterChanged()
 		unsigned char address[ETHERNET_ADDRESS_SIZE];
 		m_NI->GetMacAddress(address);
 		m_sourceMac = FormatMac(address);
+		#if USE_IP_STACK
+		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("내 IP 주소를 입력하고 연결하세요. 상대 IP는 전송할 때 지정합니다."));
+#else
 		SetDlgItemText(IDC_STATIC_NETWORK_STATUS, _T("상대 PC의 MAC 주소를 입력하고 설정을 누르십시오."));
+#endif
 	}
 	// [assignment4] UpdateData(FALSE)로 사용자가 입력 중인 목적지/채팅까지 덮어쓰지 않는다.
 	SetDlgItemText(IDC_EDIT_SRC, m_sourceMac);
@@ -568,6 +626,10 @@ void Cipc2019Dlg::OnAdapterChanged()
 // [assignment4] 재설정 시에는 수신 스레드를 종료한 다음 미완성 조각과 파일 상태를 정리한다.
 void Cipc2019Dlg::SetNetworkAddress()
 {
+#if USE_IP_STACK
+    // [assignment6] 어댑터/내 IP 연결은 목적지 MAC 설정과 분리한다. 아래 과제 4 경로는 보존한다.
+    SetIpNetworkAddress(); return;
+#endif
 	if (m_bSendReady) {
 		if (m_FileApp->IsSending()) {
 			AfxMessageBox(_T("파일 송신이 끝난 뒤 주소를 재설정하십시오.")); return;
@@ -617,6 +679,14 @@ void Cipc2019Dlg::SetNetworkAddress()
 // [assignment4] 설정 완료 여부에 따라 채팅·파일 전송 버튼을 활성화하고 송수신 중에는 어댑터·주소 변경을 제한한다.
 void Cipc2019Dlg::SetNetworkDlgState(int state)
 {
+#if USE_IP_STACK
+    if (state == IPC_BROADCASTMODE || state == IPC_UNICASTMODE) {
+        BOOL broadcast = ((CButton*)GetDlgItem(IDC_CHECK_TOALL))->GetCheck();
+        m_destinationMac = broadcast ? _T("255.255.255.255") : _T("");
+        SetDlgItemText(IDC_EDIT_DST, m_destinationMac);
+    }
+    RefreshIpControls(); return;
+#endif
 	BOOL broadcast = ((CButton*)GetDlgItem(IDC_CHECK_TOALL))->GetCheck();
 	if (state == IPC_INITIALIZING || state == IPC_READYTOSEND) {
 		BOOL ready = state == IPC_READYTOSEND;
@@ -642,18 +712,32 @@ void Cipc2019Dlg::SendNetworkChat()
 {
 	UpdateData(TRUE);
 	if (!m_bSendReady || m_stMessage.IsEmpty()) return;
+#if USE_IP_STACK
+    if (!PrepareIpDestination()) return;
+#endif
 	// [assignment4] 문자열 문자 수와 네트워크 바이트 수는 다르다. 한글도 UTF-8 바이트로 바꾼 뒤
 	// [assignment4] 그 바이트 길이를 헤더에 넣고, 수신 시 전체를 모은 다음 한 번만 역변환한다.
 	CStringA utf8(CT2A(m_stMessage, CP_UTF8));
 	if (utf8.GetLength() > CHAT_MAX_MESSAGE_SIZE) {
 		AfxMessageBox(_T("과제 헤더의 전체 길이는 UTF-8 기준 65535 bytes까지입니다.")); return;
 	}
+#if USE_IP_STACK
+    if (!m_IP->CanAcceptChat(utf8.GetLength())) {
+        AfxMessageBox(_T("ARP 응답 대기 중인 채팅이 많습니다. 주소 확인 후 다시 전송하세요.")); return;
+    }
+#endif
 	if (!m_ChatApp->Send(reinterpret_cast<unsigned char*>(const_cast<char*>(static_cast<LPCSTR>(utf8))), utf8.GetLength())) {
 		AfxMessageBox(_T("채팅 프레임 송신 실패")); return;
 	}
 	CString line;
+	#if USE_IP_STACK
+    // [assignment6] ARP 대기 큐 접수도 포함하므로 수신 완료나 ACK라고 표시하지 않는다.
+    line.Format(_T("[송신 요청 %s -> %s]\r\n%s"), static_cast<LPCTSTR>(m_sourceIp),
+        static_cast<LPCTSTR>(NetworkAddress::FormatIp(m_IP->GetDestination())), static_cast<LPCTSTR>(m_stMessage));
+#else
 	line.Format(_T("[송신 %s -> %s]\r\n%s"), static_cast<LPCTSTR>(m_sourceMac),
 		static_cast<LPCTSTR>(m_destinationMac), static_cast<LPCTSTR>(m_stMessage));
+#endif
 	AppendChatMessage(line); // [assignment4] 이 표시는 로컬 송신 표시이며 상대 수신 ACK가 아니다.
 	m_stMessage.Empty();
 	SetDlgItemText(IDC_EDIT_MSG, m_stMessage);
@@ -666,7 +750,11 @@ BOOL Cipc2019Dlg::Receive(unsigned char* payload, int length, const unsigned cha
 	if (!payload || !source || length <= 0) return FALSE;
 	CStringA utf8(reinterpret_cast<const char*>(payload), length);
 	CString message(CA2T(utf8, CP_UTF8));
+	#if USE_IP_STACK
+    CString sender = NetworkAddress::FormatIp(NetworkPackets::ReadIp(source));
+#else
 	CString sender = FormatMac(source);
+#endif
 	CString* line = new CString;
 	line->Format(_T("[수신 %s]\r\n%s"), static_cast<LPCTSTR>(sender), static_cast<LPCTSTR>(message));
 	// [assignment4] NI 작업 스레드는 채팅 컨트롤을 직접 수정하지 않고 출력할 문자열만 복사해 전달한다.
@@ -696,6 +784,9 @@ void Cipc2019Dlg::OnFileBrowse()
 // [assignment4] 주소 설정과 중복 송신 여부를 확인하고 송신 표시만 초기화한 뒤 FileApp 작업 스레드를 시작한다.
 void Cipc2019Dlg::OnFileSend()
 {
+#if USE_IP_STACK
+    SendIpFile(); return;
+#endif
 	if (!m_FileApp || !m_bSendReady || m_FileApp->IsSending()) return;
 	if (m_filePath.IsEmpty()) { AfxMessageBox(_T("전송할 파일을 선택하십시오.")); return; }
 	GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(FALSE);
@@ -730,6 +821,9 @@ LRESULT Cipc2019Dlg::OnFileStatus(WPARAM wParam, LPARAM lParam)
 	if (status->sending && status->finished)
 		GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(m_bSendReady);
 	delete status;
+#if USE_IP_STACK
+    RefreshIpControls();
+#endif
 	return 0;
 }
 
@@ -745,7 +839,11 @@ void Cipc2019Dlg::OnDestroy()
 		delete reinterpret_cast<CString*>(message.lParam);
 	while (::PeekMessage(&message, m_hWnd, WM_FILE_STATUS, WM_FILE_STATUS, PM_REMOVE))
 		delete reinterpret_cast<FILE_STATUS*>(message.lParam);
-	CDialogEx::OnDestroy();
+    // [assignment6] IP/ARP 상태 메시지의 소유권도 종료 시 정리한다.
+    while (::PeekMessage(&message, m_hWnd, WM_NETWORK_EVENT, WM_NETWORK_EVENT, PM_REMOVE))
+        delete reinterpret_cast<CString*>(message.lParam);
+    while (::PeekMessage(&message, m_hWnd, WM_ARP_CHANGED, WM_ARP_CHANGED, PM_REMOVE)) {}
+    CDialogEx::OnDestroy();
 }
 
 // [assignment4] 하이픈 또는 콜론으로 구분된 MAC 문자열을 검증하여 Ethernet 주소 6바이트로 변환한다.

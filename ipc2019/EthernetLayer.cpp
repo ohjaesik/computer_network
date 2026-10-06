@@ -51,8 +51,25 @@ void CEthernetLayer::SetSourceAddress(unsigned char* pAddress)
 {
 	//////////////////////// fill the blank ///////////////////////////////
 		// 전달받은 MAC 주소 6바이트를 Ethernet 헤더의 출발지 주소에 복사한다.
+	std::lock_guard<std::mutex> lock(m_addressMutex);
 	memcpy(m_sHeader.enet_srcaddr, pAddress, 6);
+	memcpy(m_physicalMac, pAddress, 6);
+	m_acceptProbe = false;
 	///////////////////////////////////////////////////////////////////////
+}
+
+void CEthernetLayer::SetLogicalSourceAddress(const unsigned char* address)
+{
+    std::lock_guard<std::mutex> lock(m_addressMutex);
+    memcpy(m_sHeader.enet_srcaddr, address, 6);
+    m_acceptProbe = false;
+}
+
+void CEthernetLayer::SetProbeAddress(const unsigned char* address)
+{
+    std::lock_guard<std::mutex> lock(m_addressMutex);
+    m_acceptProbe = address != nullptr;
+    if (address) memcpy(m_probeMac,address,6);
 }
 
 void CEthernetLayer::SetDestinAddress(unsigned char* pAddress)
@@ -96,8 +113,12 @@ BOOL CEthernetLayer::Receive(unsigned char* ppayload)
 // [assignment4] 파일 스레드와 UI의 채팅 전송이 동시에 이 함수에 들어올 수 있다.
 // [assignment4] 공통 m_sHeader의 data/type을 덮어쓰지 않고 각 호출의 지역 프레임을 만들어 보낸다.
 // [assignment4] 주소는 수신/송신을 멈춘 설정 단계에서만 바뀌므로 전송 도중 변경되지 않는다.
+// [assignment6] GARP의 논리 MAC 변경은 별도 잠금으로 보호하며 파일 송신 중에는 UI에서 변경을 금지한다.
 BOOL CEthernetLayer::Send(unsigned char* payload, int length, unsigned short type)
 {
+#if USE_IP_STACK
+	return SendTo(payload, length, type, m_sHeader.enet_dstaddr);
+#else
 	if (!payload || length < 0 || length > ETHER_MAX_DATA_SIZE || !mp_UnderLayer ||
 		(type != ETHERNET_TYPE_CHAT && type != ETHERNET_TYPE_FILE)) return FALSE;
 	ETHERNET_HEADER frame = {};
@@ -108,6 +129,7 @@ BOOL CEthernetLayer::Send(unsigned char* payload, int length, unsigned short typ
 	// [assignment4] FCS를 제외한 Ethernet 최소 크기는 60바이트다. 나머지는 초기화된 0으로 채운다.
 	return mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&frame),
 		(std::max)(60, ETHER_HEADER_SIZE + length));
+#endif
 }
 
 // [assignment4] 프레임 길이와 MAC 주소를 검사한 뒤 EtherType에 따라 ChatApp 또는 FileApp으로 역캡슐화한다.
@@ -116,17 +138,43 @@ BOOL CEthernetLayer::Receive(unsigned char* payload, int length, const unsigned 
 	if (!payload || length < ETHER_HEADER_SIZE || length > ETHER_MAX_SIZE) return FALSE;
 	ETHERNET_HEADER* frame = reinterpret_cast<ETHERNET_HEADER*>(payload);
 	const unsigned char broadcast[ETHERNET_ADDRESS_SIZE] = {255,255,255,255,255,255};
+	unsigned char local[6], physical[6], probe[6]; bool acceptProbe;
+	{
+		std::lock_guard<std::mutex> lock(m_addressMutex);
+		memcpy(local, m_sHeader.enet_srcaddr, 6); memcpy(physical, m_physicalMac, 6);
+		memcpy(probe,m_probeMac,6); acceptProbe = m_acceptProbe;
+	}
 
 	// [assignment4] 자기 주소 또는 broadcast 목적지만 수신한다. Npcap은 자신이 보낸 프레임도
 	// [assignment4] 캡처할 수 있으므로 source == 자기 MAC인 경우에는 상위로 되돌려 보내지 않는다.
-	if (memcmp(frame->enet_dstaddr, m_sHeader.enet_srcaddr, ETHERNET_ADDRESS_SIZE) &&
-		memcmp(frame->enet_dstaddr, broadcast, ETHERNET_ADDRESS_SIZE)) return FALSE;
-	if (!memcmp(frame->enet_srcaddr, m_sHeader.enet_srcaddr, ETHERNET_ADDRESS_SIZE)) return FALSE;
+	if (memcmp(frame->enet_dstaddr, local, ETHERNET_ADDRESS_SIZE) &&
+		memcmp(frame->enet_dstaddr, physical, ETHERNET_ADDRESS_SIZE) &&
+		memcmp(frame->enet_dstaddr, broadcast, ETHERNET_ADDRESS_SIZE) &&
+		!(acceptProbe && ntohs(frame->enet_type) == ETHERNET_TYPE_ARP && !memcmp(frame->enet_dstaddr,probe,6))) return FALSE;
+	if (!memcmp(frame->enet_srcaddr, local, ETHERNET_ADDRESS_SIZE) ||
+		!memcmp(frame->enet_srcaddr, physical, ETHERNET_ADDRESS_SIZE) ||
+		(acceptProbe && !memcmp(frame->enet_srcaddr,probe,6))) return FALSE;
 
 	// [assignment4] 16비트 EtherType을 호스트 바이트 순서로 복원하여 채팅 0x2080과 파일 0x2090을 구분한다.
 	unsigned short type = ntohs(frame->enet_type);
+	#if USE_IP_STACK
+	// [assignment6] 채팅/파일은 IP가 구분한다. Ethernet은 IPv4와 ARP만 분기한다.
+	// [assignment6] 두 번째 스택의 이름(IP2/ARP2)에 의존하지 않고 명시한 계층 포인터를 우선 사용한다.
+	CBaseLayer* protocolLayer = type == ETHERNET_TYPE_IPV4 ? m_ipLayer :
+		(type == ETHERNET_TYPE_ARP ? m_arpLayer : nullptr);
+	if (protocolLayer) {
+		// [assignment6] L2 broadcast에 실린 unicast IP를 중계하지 않아 ICMP 반사/브로드캐스트 루프를 막는다.
+		if (type == ETHERNET_TYPE_IPV4 && !memcmp(frame->enet_dstaddr, broadcast, 6) &&
+			length >= ETHER_HEADER_SIZE + IP_HEADER_SIZE &&
+			memcmp(frame->enet_data + 16, "\xff\xff\xff\xff", 4)) return FALSE;
+		return protocolLayer->Receive(frame->enet_data, length - ETHER_HEADER_SIZE, frame->enet_srcaddr);
+	}
+	const char* name = type == ETHERNET_TYPE_IPV4 ? "IP" :
+		(type == ETHERNET_TYPE_ARP ? "ARP" : NULL);
+#else
 	const char* name = type == ETHERNET_TYPE_CHAT ? "ChatApp" :
 		(type == ETHERNET_TYPE_FILE ? "FileApp" : NULL);
+#endif
 	if (!name) return FALSE;
 	// [assignment4] LayerManager에 연결된 상위 레이어 중 이름으로 찾으므로 등록 순서에 의존하지 않는다.
 	for (int i = 0; i < m_nUpperLayerCount; ++i) {
@@ -135,4 +183,22 @@ BOOL CEthernetLayer::Receive(unsigned char* payload, int length, const unsigned 
 			return upper->Receive(frame->enet_data, length - ETHER_HEADER_SIZE, frame->enet_srcaddr);
 	}
 	return FALSE;
+}
+
+// [assignment6] 지역 프레임으로 캡슐화해 ARP broadcast와 IP unicast의 주소가 서로 덮어쓰이지 않게 한다.
+BOOL CEthernetLayer::SendTo(unsigned char* payload, int length, unsigned short type,
+    const unsigned char* destination, const unsigned char* sourceOverride)
+{
+    if (!payload || !destination || length < 0 || length > ETHER_MAX_DATA_SIZE || !mp_UnderLayer ||
+        (type != ETHERNET_TYPE_IPV4 && type != ETHERNET_TYPE_ARP)) return FALSE;
+    ETHERNET_HEADER frame = {};
+    memcpy(frame.enet_dstaddr, destination, 6);
+    {
+        std::lock_guard<std::mutex> lock(m_addressMutex);
+        memcpy(frame.enet_srcaddr, sourceOverride ? sourceOverride : m_sHeader.enet_srcaddr, 6);
+    }
+    frame.enet_type = htons(type);
+    memcpy(frame.enet_data, payload, length);
+    return mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&frame),
+        (std::max)(60, ETHER_HEADER_SIZE + length));
 }
