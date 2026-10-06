@@ -59,6 +59,7 @@ private:
 	// [assignment4] 한 메시지의 조각과 전체 길이, 송신자 MAC을 보관하여 다른 송신자의 조각이 섞이지 않게 한다.
 	std::vector<unsigned char> m_received;
 	unsigned int m_totalLength = 0;
+	// [assignment6] IP 모드에서는 원래 송신 IP 4바이트 + 0 두 바이트를 조각 식별 키로 저장한다.
 	unsigned char m_receiveSource[ETHERNET_ADDRESS_SIZE] = {};
 
 protected:

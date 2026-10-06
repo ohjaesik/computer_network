@@ -13,7 +13,8 @@ struct FILE_APP_HEADER {
 	unsigned char fapp_data[FILE_APP_DATA_SIZE]; // [assignment4] 최대 1488바이트의 파일명 또는 파일 데이터
 };
 #pragma pack(pop)
-static_assert(sizeof(FILE_APP_HEADER) == ETHER_MAX_DATA_SIZE, "File MTU");
+// [assignment6] IP 모드의 본문은 1468바이트, 앱 헤더를 합치면 1480바이트다.
+static_assert(sizeof(FILE_APP_HEADER) == NETWORK_APP_MAX_SIZE, "File MTU");
 
 // [assignment4] 각 작업 스레드가 자신의 방향에 대해서만 갱신하는 누적 계수다.
 // [assignment4] UI는 이 객체를 직접 읽지 않고 FILE_STATUS에 복사된 값만 사용한다.
@@ -70,6 +71,7 @@ private:
 	uint32_t m_nextSequence;
 	uint64_t m_received;
 	int m_lastPercent;
+	// [assignment6] IP 모드에서는 이 배열에 송신 IP 4바이트 + 0 두 바이트를 저장한다.
 	unsigned char m_sender[ETHERNET_ADDRESS_SIZE];
 	CString m_partialPath, m_finalPath;
 

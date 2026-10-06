@@ -42,6 +42,9 @@ public:
 	// [assignment4] 기존 두 인자 Send/한 인자 Receive는 IPC 호환용으로 유지한다.
 	// [assignment4] 새 호출은 타입과 캡처 길이를 명시해 ChatApp/FileApp을 구분한다.
 	BOOL Send(unsigned char* payload, int length, unsigned short type);
+	// [assignment6] 각 패킷의 목적지를 지정한다. GARP 실습은 sourceOverride도 패킷 단위로 사용한다.
+	BOOL SendTo(unsigned char* payload, int length, unsigned short type,
+		const unsigned char* destination, const unsigned char* sourceOverride = NULL);
 	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
 
 protected:

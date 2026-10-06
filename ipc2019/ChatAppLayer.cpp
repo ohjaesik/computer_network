@@ -122,9 +122,11 @@ BOOL CChatAppLayer::Receive(unsigned char* ppayload)
 // [assignment4] 모든 조각의 totlen에는 원본 메시지의 전체 바이트 길이를 기록한다.
 // [assignment4] 작은 메시지는 FIRST 하나로 끝내고, 큰 메시지는 FIRST-(MIDDLE...)-LAST로 보낸다.
 // [assignment4] 2바이트 totlen에 담을 수 없는 크기는 잘라서 보내지 않고 명시적으로 실패한다.
+// [assignment6] 위 과제 4 설명의 1496은 직접 Ethernet 연결 기준이며 IP 모드에서는 1476으로 동작한다.
 BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
 {
-	static_assert(sizeof(NETWORK_CHAT_HEADER) == ETHER_MAX_DATA_SIZE, "Chat MTU");
+	// [assignment6] IP 모드에서는 헤더 포함 앱 패킷이 1480바이트를 넘지 않는다.
+	static_assert(sizeof(NETWORK_CHAT_HEADER) == NETWORK_APP_MAX_SIZE, "Chat MTU");
 	if (!payload || length <= 0 || length > CHAT_MAX_MESSAGE_SIZE || !mp_UnderLayer)
 		return FALSE;
 
@@ -136,7 +138,8 @@ BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
 			(offset + count == length ? CHAT_FRAGMENT_LAST : CHAT_FRAGMENT_MIDDLE);
 		memcpy(packet.capp_data, payload + offset, count);
 		if (!mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&packet),
-			CHAT_APP_HEADER_SIZE + count, ETHERNET_TYPE_CHAT)) return FALSE;
+			// [assignment6] IP의 8비트 Protocol에 기록할 식별값을 하위 IP로 전달한다.
+			CHAT_APP_HEADER_SIZE + count, USE_IP_STACK ? IP_PROTOCOL_CHAT : ETHERNET_TYPE_CHAT)) return FALSE;
 	}
 	return TRUE;
 }
@@ -153,7 +156,7 @@ void CChatAppLayer::ResetNetworkReceive()
 // [assignment4] Ethernet 최소 프레임의 padding은 totlen을 기준으로 제외하여 메시지에 섞이지 않는다.
 BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
-	if (!payload || !source || length < CHAT_APP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE)
+	if (!payload || !source || length < CHAT_APP_HEADER_SIZE || length > NETWORK_APP_MAX_SIZE)
 		return FALSE;
 	NETWORK_CHAT_HEADER* packet = reinterpret_cast<NETWORK_CHAT_HEADER*>(payload);
 	// [assignment4] 네트워크 바이트 순서의 전체 길이를 복원하고 FIRST/MIDDLE/LAST 유형을 검사한다.

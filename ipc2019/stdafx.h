@@ -59,13 +59,40 @@
 // [assignment4] 기존 IPC 상수는 위에 유지하고 Ethernet 통신용 상수만 추가한다.
 // [assignment4] 1: 과제 4의 NI 경로, 0: 기존 과제 3의 파일 기반 IPC 경로.
 #define USE_NPCAP_STACK             1
+
+// [assignment6] 1: ChatApp/FileApp -> IP -> Ethernet, 0: 과제 4의 Ethernet 직접 연결.
+#define USE_IP_STACK                1
+#define ETHERNET_TYPE_IPV4          0x0800
+#define ETHERNET_TYPE_ARP           0x0806
+// [assignment6] IANA 실험/시험용 번호를 이 프로그램에서 채팅/파일 식별에 사용한다.
+#define IP_PROTOCOL_CHAT            253
+#define IP_PROTOCOL_FILE            254
+#define IP_DEFAULT_TTL              64
+#define IPV4_BROADCAST              0xffffffffu
+#define IP_MAX_DATA_SIZE            (ETHER_MAX_DATA_SIZE - IP_HEADER_SIZE)
+#define NETWORK_APP_MAX_SIZE        (USE_IP_STACK ? IP_MAX_DATA_SIZE : ETHER_MAX_DATA_SIZE)
+#define IP_PENDING_MAX_BYTES        (128 * 1024)
+#define IP_RESOLVE_TIMEOUT_MS       3000ULL
+#define ARP_PACKET_SIZE             28
+#define ARP_HARDWARE_ETHERNET        1
+#define ARP_OPERATION_REQUEST       1
+#define ARP_OPERATION_REPLY         2
+// [assignment6] 강의자료: Complete 20분, Incomplete 3분. IP 송신 대기 3초와 별도 수명이다.
+#define ARP_COMPLETE_TIMEOUT_MS     (20ULL * 60 * 1000)
+#define ARP_INCOMPLETE_TIMEOUT_MS   (3ULL * 60 * 1000)
+#define ARP_REQUEST_INTERVAL_MS     1000ULL
+#define ARP_OWN_GARP_WINDOW_MS      5000ULL
+#define ARP_CACHE_MAX_ENTRIES       256
+#define WM_ARP_CHANGED              (WM_APP + 103)
+#define WM_NETWORK_EVENT            (WM_APP + 104)
 #define ETHERNET_ADDRESS_SIZE       6
 // [assignment4] Ethernet의 16비트 Type 필드로 채팅(0x2080)과 파일(0x2090)을 다중화한다.
 #define ETHERNET_TYPE_CHAT          0x2080
 #define ETHERNET_TYPE_FILE          0x2090
 // [assignment4] 4바이트 채팅 헤더를 제외한 1496바이트를 한 조각의 최대 데이터 크기로 사용한다.
 #define CHAT_APP_HEADER_SIZE        4
-#define CHAT_APP_DATA_SIZE          (ETHER_MAX_DATA_SIZE - CHAT_APP_HEADER_SIZE)
+// [assignment6] IPv4 기본 헤더 20바이트를 포함할 공간을 남겨 IP 모드에서는 본문 1476바이트다.
+#define CHAT_APP_DATA_SIZE          (NETWORK_APP_MAX_SIZE - CHAT_APP_HEADER_SIZE)
 #define CHAT_MAX_MESSAGE_SIZE       0xffff  // [assignment4] 과제의 2바이트 전체 길이 필드 범위
 // [assignment4] 채팅 조각 유형: 첫 조각 0, 중간 조각 1, 마지막 조각 2. 단일 조각은 첫 조각 유형을 사용한다.
 #define CHAT_FRAGMENT_FIRST         0x00
@@ -73,7 +100,8 @@
 #define CHAT_FRAGMENT_LAST          0x02
 // [assignment4] 12바이트 파일 헤더를 제외한 1488바이트로 파일 데이터를 단편화한다.
 #define FILE_APP_HEADER_SIZE        12
-#define FILE_APP_DATA_SIZE          (ETHER_MAX_DATA_SIZE - FILE_APP_HEADER_SIZE)
+// [assignment6] IP 모드에서 파일 본문은 1500 - 20 - 12 = 1468바이트다.
+#define FILE_APP_DATA_SIZE          (NETWORK_APP_MAX_SIZE - FILE_APP_HEADER_SIZE)
 #define FILE_TYPE_BINARY            0x0000
 // [assignment4] 파일 메시지 유형: INFO로 파일명·크기 전달, DATA로 본문 전달, END로 종료 검증을 요청한다.
 #define FILE_MESSAGE_INFO           0x00

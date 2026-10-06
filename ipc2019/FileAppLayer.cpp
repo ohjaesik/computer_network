@@ -158,14 +158,15 @@ BOOL CFileAppLayer::SendPacket(unsigned char type, uint32_t total, uint32_t sequ
 	packet.fapp_seq_num = htonl(sequence);
 	if (length) memcpy(packet.fapp_data, data, length);
 	return mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&packet),
-		FILE_APP_HEADER_SIZE + length, ETHERNET_TYPE_FILE);
+		// [assignment6] Ethernet type 대신 IP Protocol 식별값 254를 전달한다.
+		FILE_APP_HEADER_SIZE + length, USE_IP_STACK ? IP_PROTOCOL_FILE : ETHERNET_TYPE_FILE);
 }
 
 // [assignment4] 헤더 길이와 파일 유형을 검사하여 INFO/DATA/END 처리 함수로 분기한다.
 // [assignment4] DATA와 END는 진행 중인 파일의 송신자 MAC과 일치할 때만 처리한다.
 BOOL CFileAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
-	if (!payload || !source || length < FILE_APP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE) return FALSE;
+	if (!payload || !source || length < FILE_APP_HEADER_SIZE || length > NETWORK_APP_MAX_SIZE) return FALSE;
 	FILE_APP_HEADER* packet = reinterpret_cast<FILE_APP_HEADER*>(payload);
 	if (ntohs(packet->fapp_type) != FILE_TYPE_BINARY) return FALSE;
 	int dataLength = length - FILE_APP_HEADER_SIZE;

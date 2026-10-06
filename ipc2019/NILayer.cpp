@@ -69,7 +69,13 @@ BOOL CNILayer::OpenAdapter(int index)
 	// [assignment4] 목적지와 자기 출발지 주소 검사는 과제 요구대로 Ethernet Layer에서 수행한다.
 	bpf_program filter;
 	CStringA filterText;
+	#if USE_IP_STACK
+	// [assignment6] ARP와 실험용 IP Protocol 253/254만 캡처한다. 앱 구분 처리는 IPLayer가 담당한다.
+	filterText.Format("ether proto 0x0806 or (ether proto 0x0800 and (ip proto %u or ip proto %u))",
+		IP_PROTOCOL_CHAT, IP_PROTOCOL_FILE);
+#else
 	filterText.Format("ether proto 0x%04x or ether proto 0x%04x", ETHERNET_TYPE_CHAT, ETHERNET_TYPE_FILE);
+#endif
 	if (pcap_compile(m_handle, &filter, filterText,
 		1, PCAP_NETMASK_UNKNOWN) < 0) {
 		m_error = _T("Npcap 필터 컴파일 실패");

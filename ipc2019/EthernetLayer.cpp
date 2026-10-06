@@ -98,6 +98,9 @@ BOOL CEthernetLayer::Receive(unsigned char* ppayload)
 // [assignment4] 주소는 수신/송신을 멈춘 설정 단계에서만 바뀌므로 전송 도중 변경되지 않는다.
 BOOL CEthernetLayer::Send(unsigned char* payload, int length, unsigned short type)
 {
+#if USE_IP_STACK
+	return SendTo(payload, length, type, m_sHeader.enet_dstaddr);
+#else
 	if (!payload || length < 0 || length > ETHER_MAX_DATA_SIZE || !mp_UnderLayer ||
 		(type != ETHERNET_TYPE_CHAT && type != ETHERNET_TYPE_FILE)) return FALSE;
 	ETHERNET_HEADER frame = {};
@@ -108,6 +111,7 @@ BOOL CEthernetLayer::Send(unsigned char* payload, int length, unsigned short typ
 	// [assignment4] FCS를 제외한 Ethernet 최소 크기는 60바이트다. 나머지는 초기화된 0으로 채운다.
 	return mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&frame),
 		(std::max)(60, ETHER_HEADER_SIZE + length));
+#endif
 }
 
 // [assignment4] 프레임 길이와 MAC 주소를 검사한 뒤 EtherType에 따라 ChatApp 또는 FileApp으로 역캡슐화한다.
@@ -125,8 +129,14 @@ BOOL CEthernetLayer::Receive(unsigned char* payload, int length, const unsigned 
 
 	// [assignment4] 16비트 EtherType을 호스트 바이트 순서로 복원하여 채팅 0x2080과 파일 0x2090을 구분한다.
 	unsigned short type = ntohs(frame->enet_type);
+	#if USE_IP_STACK
+	// [assignment6] 채팅/파일은 IP가 구분한다. Ethernet은 IPv4와 ARP만 분기한다.
+	const char* name = type == ETHERNET_TYPE_IPV4 ? "IP" :
+		(type == ETHERNET_TYPE_ARP ? "ARP" : NULL);
+#else
 	const char* name = type == ETHERNET_TYPE_CHAT ? "ChatApp" :
 		(type == ETHERNET_TYPE_FILE ? "FileApp" : NULL);
+#endif
 	if (!name) return FALSE;
 	// [assignment4] LayerManager에 연결된 상위 레이어 중 이름으로 찾으므로 등록 순서에 의존하지 않는다.
 	for (int i = 0; i < m_nUpperLayerCount; ++i) {
@@ -135,4 +145,19 @@ BOOL CEthernetLayer::Receive(unsigned char* payload, int length, const unsigned 
 			return upper->Receive(frame->enet_data, length - ETHER_HEADER_SIZE, frame->enet_srcaddr);
 	}
 	return FALSE;
+}
+
+// [assignment6] 지역 프레임으로 캡슐화해 ARP broadcast와 IP unicast의 주소가 서로 덮어쓰이지 않게 한다.
+BOOL CEthernetLayer::SendTo(unsigned char* payload, int length, unsigned short type,
+    const unsigned char* destination, const unsigned char* sourceOverride)
+{
+    if (!payload || !destination || length < 0 || length > ETHER_MAX_DATA_SIZE || !mp_UnderLayer ||
+        (type != ETHERNET_TYPE_IPV4 && type != ETHERNET_TYPE_ARP)) return FALSE;
+    ETHERNET_HEADER frame = {};
+    memcpy(frame.enet_dstaddr, destination, 6);
+    memcpy(frame.enet_srcaddr, sourceOverride ? sourceOverride : m_sHeader.enet_srcaddr, 6);
+    frame.enet_type = htons(type);
+    memcpy(frame.enet_data, payload, length);
+    return mp_UnderLayer->Send(reinterpret_cast<unsigned char*>(&frame),
+        (std::max)(60, ETHER_HEADER_SIZE + length));
 }
