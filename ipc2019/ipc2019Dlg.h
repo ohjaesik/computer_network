@@ -167,4 +167,29 @@ private:
     afx_msg LRESULT OnNetworkEvent(WPARAM wParam, LPARAM lParam);
     afx_msg void OnSecondAdapterChanged();
     afx_msg void OnRoutingModeChanged();
+
+    // [assignment6] 큰 원본 배치를 가상 화면으로 보관하고, 창에는 스크롤 위치만큼 이동해 표시한다.
+    // [assignment6] ARP 자식창도 함께 이동하므로 화면 전환 및 기존 컨트롤 ID/상태는 유지된다.
+    struct SCROLL_CHILD { HWND window; CRect original; };
+    std::vector<SCROLL_CHILD> m_scrollChildren;
+    CSize m_scrollContent = CSize(0, 0), m_scrollPage = CSize(0, 0), m_scrollMaximum = CSize(0, 0);
+    CSize m_scrollLine = CSize(16, 24);
+    CPoint m_scrollOffset = CPoint(0, 0);
+    int m_wheelRemainder[2] = {};
+    HWND m_lastScrollFocus = nullptr;
+    bool m_scrollReady = false, m_updatingScroll = false;
+    void InitDialogScroll();
+    void UpdateDialogScroll();
+    void PositionScrollChildren();
+    void ScrollDialogTo(int x, int y);
+    void HandleDialogScroll(int bar, UINT code);
+    bool ScrollDialogWheel(UINT flags, short delta);
+    bool PreTranslateDialogScroll(MSG* message);
+    bool ControlOwnsWheel(CPoint screenPoint) const;
+    void RevealFocusedControl();
+    afx_msg void OnSize(UINT type, int cx, int cy);
+    afx_msg void OnGetMinMaxInfo(MINMAXINFO* info);
+    afx_msg void OnVScroll(UINT code, UINT position, CScrollBar* scrollBar);
+    afx_msg void OnHScroll(UINT code, UINT position, CScrollBar* scrollBar);
+    afx_msg BOOL OnMouseWheel(UINT flags, short delta, CPoint point);
 };

@@ -23,6 +23,7 @@ for kind, suffix in [('ClCompile', '.cpp'), ('ClInclude', '.h')]:
         if kind == 'ClCompile' and name == 'NetworkPackets':
             continue
         assert name + suffix in registered, f'Not registered: {name + suffix}'
+    assert ('ipc2019DlgScroll.cpp' if kind == 'ClCompile' else 'DialogScrollLayout.h') in registered
 
 header = (source / 'resource.h').read_text(encoding='utf-8-sig')
 ids = dict(re.findall(r'^#define\s+((?:IDC_|IDD_)\w+)\s+(-?\d+)', header, re.M))
@@ -33,6 +34,9 @@ for name in set(re.findall(r'\b(?:IDC_|IDD_)\w+', resource)):
 
 dialogs = dict((name, (int(width), int(height), body)) for name, width, height, body in re.findall(
     r'(IDD_\w+) DIALOGEX \d+, \d+, (\d+), (\d+)\n.*?\nBEGIN\n(.*?)\nEND', resource, re.S))
+main_style = re.search(r'IDD_IPC2019_DIALOG DIALOGEX[^\n]+\nSTYLE ([^\n]+)', resource).group(1)
+for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX', 'WS_CLIPCHILDREN'):
+    assert style in main_style, f'Scrollable main window missing style: {style}'
 page_controls = {}
 for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG'):
     width, height, body = dialogs[name]
@@ -53,6 +57,13 @@ for filename, dialog in [('ipc2019DlgNetwork.cpp', 'IDD_IPC2019_DIALOG'), ('ARPD
     for name in set(re.findall(r'\bIDC_\w+', text)):
         assert name in page_controls[dialog], f'Missing UI control: {filename} / {name}'
 
+# [assignment6] child Dialog 생성 후 가상 배치를 기록해야 ARP 화면도 외부 스크롤에 포함된다.
+main_cpp = (source / 'ipc2019Dlg.cpp').read_text(encoding='utf-8-sig')
+assert main_cpp.index('InitIpUi();') < main_cpp.index('InitDialogScroll();')
+for message in ('ON_WM_SIZE()', 'ON_WM_VSCROLL()', 'ON_WM_HSCROLL()', 'ON_WM_MOUSEWHEEL()', 'ON_WM_GETMINMAXINFO()'):
+    assert message in main_cpp, f'Missing scroll message handler: {message}'
+assert 'if (::GetFocus() != m_lastScrollFocus) RevealFocusedControl();' in main_cpp
+
 # [assignment6] 새 중계 구현에서도 기존 과제 4 주석을 원문 그대로 보존했는지 검사한다.
 baseline = None
 for revision in ('a33ccf64e78d32280a2d1663f7d1f7502508f145', 'cd6d6c3344d7fe14e607efd072000b80078d8895'):
@@ -72,4 +83,4 @@ for path in source.glob('*'):
     new = Counter(line.strip() for line in path.read_text(encoding=encoding).splitlines() if '[assignment4]' in line)
     assert not old - new, f'Original assignment4 comments changed: {path.name}'
 
-print('PASS: project/filters, source registration, unique resource IDs, UI bindings/bounds, original assignment4 comments')
+print('PASS: project/filters, source registration, resource/UI bindings/bounds, scroll initialization/messages and original assignment4 comments')
