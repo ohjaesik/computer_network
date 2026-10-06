@@ -166,6 +166,7 @@ BOOL CFileAppLayer::SendPacket(unsigned char type, uint32_t total, uint32_t sequ
 // [assignment4] DATA와 END는 진행 중인 파일의 송신자 MAC과 일치할 때만 처리한다.
 BOOL CFileAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_receiveMutex);
 	if (!payload || !source || length < FILE_APP_HEADER_SIZE || length > NETWORK_APP_MAX_SIZE) return FALSE;
 	FILE_APP_HEADER* packet = reinterpret_cast<FILE_APP_HEADER*>(payload);
 	if (ntohs(packet->fapp_type) != FILE_TYPE_BINARY) return FALSE;
@@ -289,6 +290,7 @@ BOOL CFileAppLayer::ReceiveEnd(FILE_APP_HEADER* packet)
 // [assignment4] 마지막 진행 스냅샷은 완료·오류 표시에서 사용할 수 있도록 유지한다.
 void CFileAppLayer::ResetReceive()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_receiveMutex);
 	// [assignment4] NI 스레드 내부 또는 NI가 종료된 뒤 UI에서만 호출하여 수신 기록과 충돌하지 않는다.
 	if (m_receiveFile.m_hFile != CFile::hFileNull) m_receiveFile.Abort();
 	if (!m_partialPath.IsEmpty()) DeleteFile(m_partialPath);

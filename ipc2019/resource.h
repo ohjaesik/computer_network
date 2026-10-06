@@ -53,6 +53,16 @@
 #define IDC_GARP_MAC                     1112
 #define IDC_GARP_SEND                    1113
 #define IDC_ARP_STATUS                   1114
+#define IDC_COMBO_ADAPTER2               1115
+#define IDC_EDIT_SOURCE_IP2              1116
+#define IDC_EDIT_SOURCE_MAC2             1117
+#define IDC_EDIT_SUBNET_MASK             1118
+#define IDC_EDIT_SUBNET_MASK2            1119
+#define IDC_ENABLE_ROUTING               1120
+#define IDC_ARP_INTERFACE                1121
+#define IDC_PROXY_OUTGOING               1122
+#define IDC_PROXY_NEXT_HOP               1123
+#define IDC_ROUTER_STATUS                1124
 
 // Next default values for new objects
 // 
@@ -60,7 +70,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1115
+#define _APS_NEXT_CONTROL_VALUE         1125
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

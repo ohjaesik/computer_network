@@ -147,6 +147,7 @@ BOOL CChatAppLayer::SendNetwork(unsigned char* payload, int length)
 // [assignment4] 재조립 중이던 바이트, 전체 길이, 송신자 MAC을 초기화한다. 새 메시지·오류·주소 재설정에 사용한다.
 void CChatAppLayer::ResetNetworkReceive()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_receiveMutex);
 	m_received.clear();
 	m_totalLength = 0;
 	memset(m_receiveSource, 0, sizeof(m_receiveSource));
@@ -156,6 +157,7 @@ void CChatAppLayer::ResetNetworkReceive()
 // [assignment4] Ethernet 최소 프레임의 padding은 totlen을 기준으로 제외하여 메시지에 섞이지 않는다.
 BOOL CChatAppLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_receiveMutex);
 	if (!payload || !source || length < CHAT_APP_HEADER_SIZE || length > NETWORK_APP_MAX_SIZE)
 		return FALSE;
 	NETWORK_CHAT_HEADER* packet = reinterpret_cast<NETWORK_CHAT_HEADER*>(payload);

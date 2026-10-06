@@ -57,4 +57,18 @@ namespace NetworkPackets {
         const uint8_t zero[6] = {};
         return mac && !(mac[0] & 1) && std::memcmp(mac, zero, 6) != 0;
     }
+    // [assignment6] /1~ /30의 연속된 subnet mask만 지원한다. /31 point-to-point는 실습 범위 밖이다.
+    inline bool IsSubnetMask(uint32_t mask) {
+        const uint32_t inverse = ~mask;
+        return mask && inverse >= 3 && (inverse & (inverse + 1)) == 0;
+    }
+    inline bool IsHostOnSubnet(uint32_t ip, uint32_t localIp, uint32_t mask) {
+        return IsUnicastIp(ip) && IsSubnetMask(mask) && (ip & mask) == (localIp & mask) &&
+            (ip & ~mask) != 0 && (ip & ~mask) != ~mask;
+    }
+    inline void FixIpChecksum(uint8_t* packet, size_t headerLength) {
+        packet[10] = packet[11] = 0;
+        const uint16_t checksum = Checksum(packet, headerLength);
+        packet[10] = uint8_t(checksum >> 8); packet[11] = uint8_t(checksum);
+    }
 }

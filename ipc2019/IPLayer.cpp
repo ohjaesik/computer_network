@@ -2,6 +2,7 @@
 #include "IPLayer.h"
 #include "ARPLayer.h"
 #include "EthernetLayer.h"
+#include "IPRouter.h"
 
 using namespace NetworkPackets;
 
@@ -17,6 +18,7 @@ void CIPLayer::Reset()
     std::lock_guard<std::mutex> lock(m_mutex);
     m_pending.clear(); m_pendingBytes = 0;
     m_sourceIp = m_destinationIp = 0; m_arp = nullptr; m_identification = 0;
+    m_router = nullptr;
 }
 bool CIPLayer::SetDestination(uint32_t destination)
 {
@@ -35,12 +37,16 @@ bool CIPLayer::IsDestinationResolved()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     unsigned char mac[6];
+    if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp))
+        return m_router->IsDestinationResolved(m_interfaceIndex,m_destinationIp);
     return m_destinationIp == IPV4_BROADCAST ||
         (m_arp && m_destinationIp && m_arp->Lookup(m_destinationIp, mac));
 }
 BOOL CIPLayer::RequestDestination()
 {
     uint32_t destination = GetDestination();
+    if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,destination))
+        return m_router->RequestDestination(m_interfaceIndex,destination);
     return destination == IPV4_BROADCAST || (m_arp && m_arp->SendRequest(destination));
 }
 
@@ -66,7 +72,7 @@ BOOL CIPLayer::Send(unsigned char* payload, int length, unsigned short protocol)
     uint32_t requestIp = 0;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_sourceIp || !m_destinationIp || !m_arp) return FALSE;
+        if (!m_sourceIp || !m_destinationIp || !m_arp || !m_arp->IsUsable()) return FALSE;
         // [assignment6] IPv4 기본 헤더 20바이트. 앱에서 1480바이트 이하로 나눴으므로 DF=1, offset=0이다.
         std::vector<unsigned char> packet(IP_HEADER_SIZE + length, 0);
         IPV4_HEADER header = {};
@@ -80,6 +86,9 @@ BOOL CIPLayer::Send(unsigned char* payload, int length, unsigned short protocol)
         header.checksum = htons(Checksum(reinterpret_cast<const unsigned char*>(&header), sizeof(header)));
         memcpy(packet.data(), &header, sizeof(header));
         memcpy(packet.data() + IP_HEADER_SIZE, payload, length);
+
+        if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp))
+            return m_router->SendOriginated(m_interfaceIndex,packet.data(),static_cast<int>(packet.size()),protocol == IP_PROTOCOL_CHAT);
 
         unsigned char mac[6];
         if (m_destinationIp == IPV4_BROADCAST) {
@@ -132,7 +141,7 @@ void CIPLayer::OnArpResolved(uint32_t ip)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     unsigned char mac[6];
-    if (m_arp && m_arp->Lookup(ip, mac)) FlushLocked(ip, mac);
+    if (m_arp && m_arp->IsUsable() && m_arp->Lookup(ip, mac)) FlushLocked(ip, mac);
 }
 void CIPLayer::Tick(ULONGLONG now)
 {
@@ -140,6 +149,10 @@ void CIPLayer::Tick(ULONGLONG now)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_pending.empty()) return;
+        if (!m_arp || !m_arp->IsUsable()) {
+            m_pending.clear(); m_pendingBytes = 0;
+            Report(_T("주소 검사/충돌로 대기 중인 채팅을 취소했습니다.")); return;
+        }
         if (now >= m_pending.front().expiresAt) {
             m_pending.clear(); m_pendingBytes = 0;
             Report(_T("ARP 응답 없음: 대기 중인 채팅을 보내지 못했습니다."));
@@ -150,18 +163,34 @@ void CIPLayer::Tick(ULONGLONG now)
 
 BOOL CIPLayer::Receive(unsigned char* payload, int length, const unsigned char* source)
 {
-    if (!payload || length < IP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE || !m_sourceIp) return FALSE;
+    if (!payload || length < IP_HEADER_SIZE || length > ETHER_MAX_DATA_SIZE || !m_sourceIp ||
+        !m_arp || !m_arp->IsUsable()) return FALSE;
     IPV4_HEADER header;
     memcpy(&header, payload, sizeof(header));
     const int headerLength = (header.versionIhl & 0x0f) * 4;
     const int totalLength = ntohs(header.totalLength);
-    // [assignment6] 현재 송수신 규약은 IPv4 옵션 없는 IHL=5다. 단편화 패킷은 재조립하지 않고 거절한다.
+    // [assignment6] IPv4 옵션 없는 IHL=5를 검증한다. 중계 조각은 재조립하지 않고 원본 그대로 전달한다.
     if ((header.versionIhl >> 4) != 4 || headerLength != IP_HEADER_SIZE ||
-        totalLength < headerLength || totalLength > length || header.ttl == 0 ||
-        (ntohs(header.flagsOffset) & 0xbfff) != 0 || Checksum(payload, headerLength) != 0) return FALSE;
+        totalLength < headerLength || totalLength > length ||
+        (ntohs(header.flagsOffset) & 0x8000) != 0 || Checksum(payload, headerLength) != 0) return FALSE;
     const uint32_t destination = ReadIp(header.destination), sender = ReadIp(header.source);
-    if ((destination != m_sourceIp && destination != IPV4_BROADCAST) || !IsUnicastIp(sender) || sender == m_sourceIp)
+    if (!IsUnicastIp(sender) || sender == m_sourceIp)
         return FALSE;
+    if (destination != m_sourceIp && destination != IPV4_BROADCAST &&
+        !(m_router && m_router->IsLocalAddress(destination)))
+        return m_router && source ? m_router->Forward(m_interfaceIndex,payload,totalLength,source) : FALSE;
+    // [assignment6] 로컬 앱은 IPv4 단편 재조립을 지원하지 않으므로 기존 안전 검사도 유지한다.
+    if (!header.ttl || (ntohs(header.flagsOffset) & 0xbfff) != 0) return FALSE;
+    if (header.protocol == IP_PROTOCOL_ICMP) {
+        const int icmpLength = totalLength - headerLength;
+        if (icmpLength < 8 || Checksum(payload+headerLength,icmpLength)) return FALSE;
+        const unsigned char type = payload[headerLength], code = payload[headerLength+1];
+        if (type == 3 || type == 11) {
+            CString text; text.Format(_T("ICMP 오류 수신: type=%u code=%u (상대/중계 경로를 확인하세요)"),type,code);
+            Report(text); return TRUE;
+        }
+        return FALSE;
+    }
     const char* name = header.protocol == IP_PROTOCOL_CHAT ? "ChatApp" :
         (header.protocol == IP_PROTOCOL_FILE ? "FileApp" : nullptr);
     if (!name) return FALSE;

@@ -71,8 +71,8 @@ BOOL CNILayer::OpenAdapter(int index)
 	CStringA filterText;
 	#if USE_IP_STACK
 	// [assignment6] ARP와 실험용 IP Protocol 253/254만 캡처한다. 앱 구분 처리는 IPLayer가 담당한다.
-	filterText.Format("ether proto 0x0806 or (ether proto 0x0800 and (ip proto %u or ip proto %u))",
-		IP_PROTOCOL_CHAT, IP_PROTOCOL_FILE);
+	// [assignment6] PARP 중계는 TCP/UDP/ICMP 등 원래 Protocol도 전달해야 하므로 모든 IPv4를 받아야 한다.
+	filterText = "ether proto 0x0806 or ether proto 0x0800";
 #else
 	filterText.Format("ether proto 0x%04x or ether proto 0x%04x", ETHERNET_TYPE_CHAT, ETHERNET_TYPE_FILE);
 #endif

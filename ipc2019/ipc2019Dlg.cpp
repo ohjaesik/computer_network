@@ -84,6 +84,11 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	// [assignment6] IP는 앱 다중화, ARP는 주소 해석과 Proxy/GARP를 담당한다.
 	m_LayerMgr.AddLayer(new CIPLayer("IP"));
 	m_LayerMgr.AddLayer(new CARPLayer("ARP"));
+	// [assignment6] 원래 스택은 보존하고 PARP의 다른 물리 LAN용 스택을 추가한다.
+	m_LayerMgr.AddLayer(new CNILayer("NI2"));
+	m_LayerMgr.AddLayer(new CEthernetLayer("Ethernet2"));
+	m_LayerMgr.AddLayer(new CIPLayer("IP2"));
+	m_LayerMgr.AddLayer(new CARPLayer("ARP2"));
 #endif
 #else
 	m_LayerMgr.AddLayer(new CFileLayer("File"));
@@ -99,6 +104,13 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *IP ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) *ARP ) )");
 	m_IP = static_cast<CIPLayer*>(m_LayerMgr.GetLayer("IP"));
 	m_ARP = static_cast<CARPLayer*>(m_LayerMgr.GetLayer("ARP"));
+	m_LayerMgr.ConnectLayers("NI2 ( *Ethernet2 ( *IP2 ( +ChatApp +FileApp ) *ARP2 ) )");
+	m_NI2 = static_cast<CNILayer*>(m_LayerMgr.GetLayer("NI2"));
+	m_Ethernet2 = static_cast<CEthernetLayer*>(m_LayerMgr.GetLayer("Ethernet2"));
+	m_IP2 = static_cast<CIPLayer*>(m_LayerMgr.GetLayer("IP2"));
+	m_ARP2 = static_cast<CARPLayer*>(m_LayerMgr.GetLayer("ARP2"));
+	static_cast<CEthernetLayer*>(m_LayerMgr.GetLayer("Ethernet"))->SetProtocolLayers(m_IP,m_ARP);
+	m_Ethernet2->SetProtocolLayers(m_IP2,m_ARP2);
 #else
 	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) )");
 #endif
@@ -122,6 +134,9 @@ void Cipc2019Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_DST, m_destinationMac);
 	DDX_Text(pDX, IDC_EDIT_FILE_PATH, m_filePath);
 	DDX_Control(pDX, IDC_COMBO_ADAPTER, m_AdapterCombo);
+#if USE_IP_STACK
+	DDX_Control(pDX, IDC_COMBO_ADAPTER2, m_AdapterCombo2);
+#endif
 	DDX_Control(pDX, IDC_PROGRESS_FILE, m_FileProgress);
     DDX_Control(pDX, IDC_PROGRESS_FILE_RECEIVE, m_FileReceiveProgress);
 #else
@@ -158,6 +173,8 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_PAGE_ARP, &Cipc2019Dlg::OnShowArpPage)
     ON_MESSAGE(WM_ARP_CHANGED, &Cipc2019Dlg::OnArpChanged)
     ON_MESSAGE(WM_NETWORK_EVENT, &Cipc2019Dlg::OnNetworkEvent)
+    ON_CBN_SELCHANGE(IDC_COMBO_ADAPTER2, &Cipc2019Dlg::OnSecondAdapterChanged)
+    ON_BN_CLICKED(IDC_ENABLE_ROUTING, &Cipc2019Dlg::OnRoutingModeChanged)
 
 	ON_REGISTERED_MESSAGE(nRegSendMsg, OnRegSendMsg)
 	//////////////////////// fill the blank ///////////////////////////////
@@ -465,11 +482,18 @@ void Cipc2019Dlg::EndofProcess()
 	// [assignment4] 하위 객체를 지우기 전에 두 worker를 join한다. 종료 중에도 PostMessage는
 	// [assignment4] 큐에 남을 수 있으므로 OnDestroy에서 해당 데이터의 소유권을 마저 정리한다.
 	if (m_FileApp) m_FileApp->StopTransfer();
+#if USE_IP_STACK
+    m_router.Suspend();
+#endif
 	if (m_NI) m_NI->CloseAdapter();
 #if USE_IP_STACK
+    if (m_NI2) m_NI2->CloseAdapter();
+    m_router.Reset(); m_router.SetNotifyWindow(NULL);
     // [assignment6] worker 종료 후 알림 대상을 분리한다. UI에는 계층 포인터를 남기지 않는다.
     if (m_ARP) m_ARP->SetNotifyWindow(NULL);
     if (m_IP) m_IP->SetNotifyWindow(NULL);
+    if (m_ARP2) m_ARP2->SetNotifyWindow(NULL);
+    if (m_IP2) m_IP2->SetNotifyWindow(NULL);
     m_arpDialog.Attach(nullptr);
 #endif
 	if (m_FileApp) m_FileApp->SetNotifyWindow(NULL);

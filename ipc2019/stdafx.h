@@ -83,6 +83,22 @@
 #define ARP_REQUEST_INTERVAL_MS     1000ULL
 #define ARP_OWN_GARP_WINDOW_MS      5000ULL
 #define ARP_CACHE_MAX_ENTRIES       256
+// [assignment6] RFC 5227의 ACD: 3회 Probe 후 2회 Announcement, 충돌 재발 시 주소 사용 중단.
+#define ARP_PROBE_WAIT_MS           1000ULL
+#define ARP_PROBE_COUNT             3
+#define ARP_PROBE_MIN_MS            1000ULL
+#define ARP_PROBE_MAX_MS            2000ULL
+#define ARP_ANNOUNCE_WAIT_MS        2000ULL
+#define ARP_ANNOUNCE_COUNT          2
+#define ARP_ANNOUNCE_INTERVAL_MS    2000ULL
+#define ARP_DEFEND_INTERVAL_MS      10000ULL
+#define ARP_MAX_CONFLICTS           10
+#define ARP_RATE_LIMIT_MS           60000ULL
+// [assignment6] PARP로 유입된 원본 IPv4 패킷을 다음 홉 ARP 완료까지 유한 큐에 보관한다.
+#define ROUTER_PENDING_MAX_BYTES   (2 * 1024 * 1024)
+#define ROUTER_MAX_INTERFACES       2
+#define IP_PROTOCOL_ICMP           1
+#define ICMP_ERROR_RATE_PER_SECOND 10
 #define WM_ARP_CHANGED              (WM_APP + 103)
 #define WM_NETWORK_EVENT            (WM_APP + 104)
 #define ETHERNET_ADDRESS_SIZE       6

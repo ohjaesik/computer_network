@@ -8,8 +8,10 @@
 class CARPDlg : public CDialogEx {
 public:
     explicit CARPDlg(CWnd* parent = nullptr) : CDialogEx(IDD_ARP_DIALOG, parent) {}
-    void Attach(CARPLayer* layer) { m_layer = layer; }
+    void Attach(CARPLayer* layer, CARPLayer* second = nullptr) { m_layers[0] = layer; m_layers[1] = second; m_layer = m_layers[m_selected]; }
     void SetConnection(bool connected, const CString& device, const CString& mac);
+    void SetConnection(int index, bool connected, const CString& device, const CString& mac);
+    void SetGarpAllowed(bool allowed) { m_garpAllowed = allowed; }
     void RefreshTables();
     void SetStatus(const CString& message);
 protected:
@@ -23,11 +25,19 @@ protected:
     afx_msg void OnProxyAdd();
     afx_msg void OnProxyDelete();
     afx_msg void OnGarp();
+    afx_msg void OnInterfaceChanged();
     DECLARE_MESSAGE_MAP()
 private:
     CARPLayer* m_layer = nullptr;
+    CARPLayer* m_layers[2] = {};
+    bool m_connections[2] = {};
+    CString m_devices[2], m_macs[2];
+    int m_selected = 0;
+    bool m_garpAllowed = true;
+    CComboBox m_interfaceCombo, m_outgoingCombo;
     CListCtrl m_cache, m_proxy;
     CString m_device, m_mac;
     bool m_connected = false;
     bool ReadTarget(int id, uint32_t& ip);
+    void RefreshControls();
 };

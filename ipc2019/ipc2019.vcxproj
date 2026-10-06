@@ -204,6 +204,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="NetworkPackets.h" />
+    <ClInclude Include="IPRouter.h" />
     <ClInclude Include="NetworkAddress.h" />
     <ClInclude Include="IPLayer.h" />
     <ClInclude Include="ARPLayer.h" />
@@ -225,6 +226,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ipc2019DlgNetwork.cpp" />
+    <ClCompile Include="IPRouter.cpp" />
     <ClCompile Include="IPLayer.cpp" />
     <ClCompile Include="ARPLayer.cpp" />
     <ClCompile Include="ARPDlg.cpp" />
