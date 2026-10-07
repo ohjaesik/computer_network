@@ -148,7 +148,7 @@ void CARPDlg::OnProxyAdd()
         AfxMessageBox(_T("다음 홉 IP를 확인하세요. 직접 연결된 대상이면 빈칸으로 둡니다.")); return;
     }
     CString device; device.Format(_T("NIC %d"),outgoing+1);
-    // [assignment6] 표에 적는 MAC은 요청이 들어오는 NIC의 MAC, 선택하는 Device는 실제 출력 NIC다.
+    // [assignment7] 표에 적는 MAC은 요청이 들어오는 NIC의 MAC, 선택하는 Device는 실제 출력 NIC다.
     if (!m_layer->AddProxy(ip,device,outgoing,nextHop))
         AfxMessageBox(_T("Proxy 등록 실패: 두 NIC 연결, 서로 다른 출력 NIC, next-hop subnet, 중복/방송/내 IP를 확인하세요."));
     RefreshTables();
@@ -167,7 +167,7 @@ void CARPDlg::OnGarp()
     if (!NetworkAddress::ParseMac(text, mac) || !NetworkPackets::IsUnicastMac(mac)) {
         AfxMessageBox(_T("유효한 unicast MAC 주소를 입력하세요.")); return;
     }
-    // [assignment6] NIC/OS 설정은 바꾸지 않지만 검사를 통과하면 raw 앱의 실제 MAC/필터도 변경된다.
-    // [assignment6] 물리 NIC가 다른 unicast MAC을 허용해야 하므로 유선 어댑터의 promiscuous 캡처로 실습한다.
+    // [assignment7] NIC/OS 설정은 바꾸지 않지만 검사를 통과하면 raw 앱의 실제 MAC/필터도 변경된다.
+    // [assignment7] 물리 NIC가 다른 unicast MAC을 허용해야 하므로 유선 어댑터의 promiscuous 캡처로 실습한다.
     if (!m_layer->SendGratuitous(mac)) SetStatus(_T("GARP 시작 실패: 진행 중 검사/연결/충돌 rate limit을 확인하세요."));
 }

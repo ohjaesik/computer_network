@@ -7,8 +7,8 @@
 class CIPLayer;
 class CIPRouter;
 
-// [assignment6] ARP 캐시와 Proxy 등록표는 서로 다른 자료다.
-// [assignment6] 캐시는 수신으로 학습하고 만료되지만, Proxy 표는 사용자가 등록/삭제한다.
+// [assignment6] ARP 캐시와 [assignment7] Proxy 등록표는 서로 다른 자료다.
+// [assignment6] 캐시는 수신으로 학습하고 만료되지만, [assignment7] Proxy 표는 사용자가 등록/삭제한다.
 struct ARP_CACHE_ENTRY {
     uint32_t ip = 0;
     unsigned char mac[6] = {};
@@ -16,6 +16,7 @@ struct ARP_CACHE_ENTRY {
     ULONGLONG expiresAt = 0;
     ULONGLONG lastRequestAt = 0;
 };
+// [assignment7] PARP 등록 항목: 대리 응답 IP와 실제 출력 NIC/next hop을 저장한다.
 struct ARP_PROXY_ENTRY {
     uint32_t ip = 0;
     CString device;
@@ -28,12 +29,13 @@ public:
     enum class ADDRESS_STATE { Disabled, Probing, Announcing, Ready, Conflict };
     explicit CARPLayer(const char* name);
     void Configure(uint32_t localIp, const unsigned char* localMac, CIPLayer* ipLayer);
-    void Reset(); // [assignment6] NI 수신 종료 후 호출하여 어댑터 변경 전의 캐시와 Proxy 설정을 비운다.
+    void Reset(); // [assignment6] NI 수신 종료 후 호출하여 어댑터 변경 전의 캐시와 [assignment7] Proxy 설정을 비운다.
     void SetNotifyWindow(HWND window) { m_window = window; }
     bool Lookup(uint32_t ip, unsigned char* mac);
     BOOL SendRequest(uint32_t targetIp, bool force = false);
+    // [assignment7] GARP 광고 또는 변경 MAC의 Probe 검사를 시작한다.
     BOOL SendGratuitous(const unsigned char* advertisedMac);
-    // [assignment6] 주소 사용 전 Probe와 GARP Announcement는 서로 다른 단계로 처리한다.
+    // [assignment7] 주소 사용 전 Probe와 GARP Announcement는 서로 다른 단계로 처리한다.
     bool BeginAddressCheck(const unsigned char* candidateMac);
     bool IsUsable() const;
     ADDRESS_STATE GetAddressState() const;
@@ -43,6 +45,7 @@ public:
     void Tick(ULONGLONG now);
     void DeleteEntry(uint32_t ip);
     void ClearCache();
+    // [assignment7] PARP 항목과 출력 경로를 함께 등록/삭제한다. 일반 ARP 캐시 삭제와 구분한다.
     bool AddProxy(uint32_t ip, const CString& device, int outgoing = -1, uint32_t nextHop = 0);
     void DeleteProxy(uint32_t ip);
     void GetSnapshot(std::vector<ARP_CACHE_ENTRY>& cache, std::vector<ARP_PROXY_ENTRY>& proxies);

@@ -67,7 +67,7 @@ private:
 
 	// [assignment4] 수신 중인 .part 파일과 기대 순번·누적 기록량·송신자 MAC을 보관한다.
 	CFile m_receiveFile;
-	// [assignment6] 같은 수신 파일을 두 NI worker가 동시에 기록/초기화하지 않게 한다.
+	// [assignment7] 같은 수신 파일을 두 NI worker가 동시에 기록/초기화하지 않게 한다.
 	std::recursive_mutex m_receiveMutex;
 	BOOL m_receiving;
 	uint32_t m_total;

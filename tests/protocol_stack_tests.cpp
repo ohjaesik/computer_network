@@ -66,7 +66,7 @@ void Pump(Host& a, Host& b) {
     }
     assert(limit);
 }
-// [assignment6] 서로 다른 LAN 두 개를 연결한다. 같은 링크에서만 broadcast를 전달한다.
+// [assignment7] 서로 다른 LAN 두 개를 연결한다. 같은 링크에서만 broadcast를 전달한다.
 void PumpRouted(Host& a, Host& left, Host& right, Host& b) {
     int limit = 10000;
     while ((!a.ni.frames.empty() || !left.ni.frames.empty() || !right.ni.frames.empty() || !b.ni.frames.empty()) && --limit) {
@@ -273,7 +273,7 @@ int main() {
         Deliver(competing,candidate); assert(candidate.arp.GetAddressState()==CARPLayer::ADDRESS_STATE::Conflict);
     }
     {
-        // [assignment6] 실제 FileApp의 INFO/DATA/END 송신과 디스크 저장을 PARP 두 LAN 경로로 검증한다.
+        // [assignment7] 실제 FileApp의 INFO/DATA/END 송신과 디스크 저장을 PARP 두 LAN 경로로 검증한다.
         CFileAppLayer sender("FileApp"), receiver("FileApp");
         Host a(1,0xc0a80a01,&sender), left(10,0xc0a80afe), right(20,0xc0a814fe), b(2,0xc0a81402,&receiver);
         CIPRouter router;

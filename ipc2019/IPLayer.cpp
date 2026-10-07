@@ -169,13 +169,14 @@ BOOL CIPLayer::Receive(unsigned char* payload, int length, const unsigned char* 
     memcpy(&header, payload, sizeof(header));
     const int headerLength = (header.versionIhl & 0x0f) * 4;
     const int totalLength = ntohs(header.totalLength);
-    // [assignment6] IPv4 옵션 없는 IHL=5를 검증한다. 중계 조각은 재조립하지 않고 원본 그대로 전달한다.
+    // [assignment6] IPv4 옵션 없는 IHL=5를 검증한다. [assignment7] 중계 조각은 재조립하지 않고 원본 그대로 전달한다.
     if ((header.versionIhl >> 4) != 4 || headerLength != IP_HEADER_SIZE ||
         totalLength < headerLength || totalLength > length ||
         (ntohs(header.flagsOffset) & 0x8000) != 0 || Checksum(payload, headerLength) != 0) return FALSE;
     const uint32_t destination = ReadIp(header.destination), sender = ReadIp(header.source);
     if (!IsUnicastIp(sender) || sender == m_sourceIp)
         return FALSE;
+    // [assignment7] PARP 대리 응답 뒤 도착한 다른 호스트의 IP 패킷은 중계 객체에 넘긴다.
     if (destination != m_sourceIp && destination != IPV4_BROADCAST &&
         !(m_router && m_router->IsLocalAddress(destination)))
         return m_router && source ? m_router->Forward(m_interfaceIndex,payload,totalLength,source) : FALSE;

@@ -8,7 +8,7 @@ class CARPLayer;
 class CIPRouter;
 
 // [assignment6] ChatApp/FileApp의 공통 하위 계층. IP Protocol 253/254로 앱을 구분한다.
-// [assignment6] 로컬 앱 송수신은 이 계층, PARP로 들어온 다른 목적지의 IP 중계는 CIPRouter가 맡는다.
+// [assignment6] 로컬 앱 송수신은 이 계층, [assignment7] PARP로 들어온 다른 목적지의 IP 중계는 CIPRouter가 맡는다.
 class CIPLayer : public CBaseLayer {
 public:
     explicit CIPLayer(const char* name);

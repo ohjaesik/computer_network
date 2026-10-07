@@ -43,13 +43,13 @@ public:
 	// [assignment4] 기존 두 인자 Send/한 인자 Receive는 IPC 호환용으로 유지한다.
 	// [assignment4] 새 호출은 타입과 캡처 길이를 명시해 ChatApp/FileApp을 구분한다.
 	BOOL Send(unsigned char* payload, int length, unsigned short type);
-	// [assignment6] 각 패킷의 목적지를 지정한다. GARP 실습은 sourceOverride도 패킷 단위로 사용한다.
+	// [assignment6] 각 패킷의 목적지를 지정한다. [assignment7] GARP 실습은 sourceOverride도 패킷 단위로 사용한다.
 	BOOL SendTo(unsigned char* payload, int length, unsigned short type,
 		const unsigned char* destination, const unsigned char* sourceOverride = NULL);
 	BOOL Receive(unsigned char* payload, int length, const unsigned char* source = NULL);
-	// [assignment6] 물리 NIC는 유지하고 앱의 논리 MAC만 바꾼다. 송신·필터가 같은 주소를 사용한다.
+	// [assignment7] 물리 NIC는 유지하고 앱의 논리 MAC만 바꾼다. 송신·필터가 같은 주소를 사용한다.
 	void SetLogicalSourceAddress(const unsigned char* address);
-	// [assignment6] 새 MAC을 Probe 중일 때 그 MAC으로 돌아오는 unicast ARP Reply만 임시로 받는다.
+	// [assignment7] 새 MAC을 Probe 중일 때 그 MAC으로 돌아오는 unicast ARP Reply만 임시로 받는다.
 	void SetProbeAddress(const unsigned char* address);
 	void SetProtocolLayers(CBaseLayer* ip, CBaseLayer* arp) { m_ipLayer = ip; m_arpLayer = arp; }
 

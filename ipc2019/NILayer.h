@@ -13,7 +13,7 @@ public:
 	BOOL LoadAdapters();
 	int GetAdapterCount() const { return static_cast<int>(m_adapters.size()); }
 	CString GetAdapterName(int index) const;
-	// [assignment6] 설명이 같은 NIC도 있을 수 있으므로 두 인터페이스 중복 검사는 pcap 장치 ID로 한다.
+	// [assignment7] 설명이 같은 NIC도 있을 수 있으므로 두 인터페이스 중복 검사는 pcap 장치 ID로 한다.
 	CStringA GetAdapterId(int index) const { return index >= 0 && index < GetAdapterCount() ? m_adapters[index].name : CStringA(); }
 	BOOL OpenAdapter(int index);
 	// [assignment4] 패킷 수신 전용 스레드를 시작하고 장치 종료 시 해당 스레드가 끝날 때까지 기다린다.

@@ -36,7 +36,7 @@
 #define IDC_EDIT_FILE_RECEIVE_STATUS    1015
 #define IDC_BUTTON_RECEIVED_FOLDER      1016
 
-// [assignment6] 화면 전환과 ARP/Proxy/GARP 컨트롤 ID. 기존 ID는 유지한다.
+// [assignment6] 화면 전환과 ARP/[assignment7] Proxy/GARP 컨트롤 ID. 기존 ID는 유지한다.
 #define IDD_ARP_DIALOG                 131
 #define IDC_PAGE_CHAT                    1100
 #define IDC_PAGE_ARP                     1101

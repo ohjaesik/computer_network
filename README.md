@@ -63,20 +63,24 @@ UI 스레드는 MFC의 기본 애플리케이션 스레드다. 별도로 구현�
 
 검증: 실제 수정한 함수에 임시 Linux용 MFC 대체 코드를 적용해 긴 채팅 추가, 송수신 분리, 속도/ETA, 정체 표시, 종료 확인 대기, 완료 뒤 시간 고정, 오류 후 처리량 유지, 재시작, 빈 파일, UI/ACK 타이머 분리를 검사했다. 실제 프로토콜 소스의 채팅 10종/파일 10종 왕복과 파일 바이트 일치 및 진행 상태 스냅샷을 확인했고 AddressSanitizer/UndefinedBehaviorSanitizer 검사도 통과했다(LeakSanitizer 제외). 리소스 ID/배치/기존 주석 보존을 확인했다. 실제 Windows/MFC 빌드, DPI별 화면, 두 PC의 Npcap 통신 속도는 이 환경에서 검증하지 못했다.
 
-## Assignment 6: IP / ARP / PARP / GARP
+## Assignment 6: IP / Basic ARP
 
-기존 과제 3/4 경로와 주석은 보존하고 `USE_IP_STACK=1`에서 IP 계층을 사용한다. 아래는 이 브랜치의 현재 동작이며, 위 과제 4 절의 EtherType 및 MTU 설명은 `USE_IP_STACK=0` 기준이다. 추가/변경 기능에는 `[assignment6]` 주석을 달았다. 프로토콜 상수는 `stdafx.h`에 모았다.
+기존 과제 3/4 경로와 주석은 보존하고 `USE_IP_STACK=1`에서 IP 계층을 사용한다. 아래는 이 브랜치의 현재 동작이며, 위 과제 4 절의 EtherType 및 MTU 설명은 `USE_IP_STACK=0` 기준이다. ARP 계층과 IP 계층의 추가·연결, 기본 ARP 요청/응답·캐시, IP 캡슐화/역캡슐화·앱 구분은 `[assignment6]`으로 표시한다. GARP·PARP 전용 구현만 `[assignment7]`으로 표시하며, 같은 파일에 두 기능이 있으면 해당 주석별로 구분한다. 기존 주석 내용은 유지하고 혼합된 설명에는 과제 7 부분 앞에 표시를 추가했다. 프로토콜 상수는 기존 `stdafx.h`에 모았다.
 
-강의자료 23·29쪽의 기본 ARP 실습은 어댑터 선택, 내 IP 설정, Request/Reply와 캐시 생성·갱신·만료를 중심으로 한다. MAC은 `NILayer::QueryMac()`이 Packet32의 `OID_802_3_CURRENT_ADDRESS`로 조회하므로 상대 IP를 입력하기 전에도 표시된다. 프로그램의 내 IP는 직접 입력하며 Windows IP를 자동으로 가져오거나 변경하지 않는다. ARP 표는 자신을 대상으로 하는 Request/Reply나 유효한 GARP 수신으로도 학습되므로 요청 입력칸이 비어 있어도 행이 생길 수 있다.
+강의자료 23·29쪽의 기본 ARP 실습은 어댑터 선택, 내 IP 설정, Request/Reply와 캐시 생성·갱신·만료를 중심으로 한다. MAC은 `NILayer::QueryMac()`이 Packet32의 `OID_802_3_CURRENT_ADDRESS`로 조회하므로 상대 IP를 입력하기 전에도 표시된다. 프로그램의 내 IP는 직접 입력하며 Windows IP를 자동으로 가져오거나 변경하지 않는다. ARP 표는 자신을 대상으로 하는 Request/Reply 수신으로도 학습되므로 요청 입력칸이 비어 있어도 행이 생길 수 있다. GARP 광고 수신에 따른 학습 확장은 아래 과제 7에 해당한다.
 
-강의자료 30쪽에는 Basic ARP/PARP/GARP 데모가 명시되어 있지만, 아래 두 NIC의 실제 IP 중계, Next hop, TTL·ICMP 처리와 RFC 5227 주소 충돌 검사는 기본 ARP 실습보다 확장한 부분이다. 기본 ARP 확인에는 단일 NIC를 사용한다. GARP 광고와 충돌 검사는 별개 기능으로 설명해야 한다.
+과제 구분은 기본 ARP와 이를 사용하는 IP 계층을 과제 6, GARP·PARP 관련 구현을 과제 7로 한다. 기본 ARP 확인에는 단일 NIC를 사용한다. 공통 IP 헤더·체크섬·MTU·앱 송수신 처리는 과제 6으로 유지하며, PARP를 위한 두 NIC 중계·next hop·TTL/ICMP와 GARP를 위한 주소 충돌 검사는 과제 7에 함께 표시한다. 이 중 중계·충돌 검사 확장은 기본 ARP 실습보다 확장한 부분이며, GARP 광고와 충돌 검사는 별개 기능으로 설명해야 한다.
 
 ### 계층과 식별값
 
 - 채팅/파일: Dialog → ChatApp/FileApp → IP → Ethernet → NI. IP Protocol은 각각 253/254(실험용)이며 TCP/UDP 헤더를 가장하지 않는다.
-- Ethernet은 IPv4 `0x0800`과 ARP `0x0806`만 분기한다. NI는 중계에 필요한 일반 TCP/UDP/ICMP도 놓치지 않도록 모든 IPv4와 ARP를 캡처한다.
+- Ethernet은 IPv4 `0x0800`과 ARP `0x0806`만 분기하며, NI는 IPv4와 ARP를 캡처한다. 과제 7의 PARP 중계에서도 같은 경로를 사용하며, 일반 TCP/UDP/ICMP도 놓치지 않도록 IPv4 전체를 캡처한다.
 - IP 헤더 20바이트를 포함해 Ethernet payload 1500바이트 이하로 만든다. 채팅 본문 1476바이트, 파일 본문 1468바이트이며, 기존 앱 재조립 규약은 유지한다.
 - ARP Request/Reply, 캐시 생성/갱신/삭제, Complete 20분·Incomplete 3분 만료를 구현했다. IP 송신 대기의 3초 제한과 ARP 캐시의 3분 수명은 다르다.
+
+## Assignment 7: PARP / GARP
+
+기본 ARP/IP 계층을 재사용하면서 GARP 광고·주소 충돌 검사와 PARP 대리 응답·등록표·실제 중계를 추가한다. `ARPLayer` 전체나 `IPLayer` 전체를 과제 7로 분류하지 않으며, 두 기능에 필요한 전용 함수·분기·상수·UI 연결에만 `[assignment7]`을 붙인다. `IPRouter.h/.cpp`는 PARP 이후 두 LAN 전달을 위한 전용 구현이다. 일반 주소 변환, IP 헤더/체크섬, 기존 채팅·파일 프로토콜과 화면 스크롤의 과제 번호는 유지한다.
 
 ### PARP와 실제 전달
 
@@ -115,7 +119,7 @@ GARP는 별도 opcode가 아니라 Sender IP와 Target IP가 같은 broadcast AR
 - 같은 MAC의 수동 GARP는 재광고하며, 다른 MAC은 Probe를 통과한 뒤 raw 앱의 실제 송신 MAC/수신 필터와 광고를 함께 바꾼다. 다른 호스트의 유효한 GARP는 기존 캐시 갱신 및 신규 학습에 반영한다.
 - 이 변경은 프로그램의 논리 MAC에만 적용한다. Windows 어댑터 MAC/IP/라우팅 테이블을 바꾸지 않는다. 임의 MAC 수신/송신 허용은 NIC·드라이버·스위치 정책에 달려 있으므로 유선 NIC에서 확인해야 한다. OS가 같은 IP를 사용하면 OS 자체 ARP/ICMP 응답과 raw 앱 동작이 함께 나타날 수 있다.
 
-### 빌드·검증·한계
+## IP/ARP 공통 빌드·검증·한계
 
 Npcap SDK 경로는 `NPCAP_SDK_DIR`을 우선 사용하고, 없으면 `C:\NpcapSDK`를 쓴다. 솔루션을 다시 빌드한다. 새 파일은 프로젝트/filters에 등록되어 있다. Wireshark 표시 필터는 `arp || ip.proto == 253 || ip.proto == 254 || icmp`이며, 일반 IP 중계까지 확인하려면 `arp || ip`를 쓴다.
 

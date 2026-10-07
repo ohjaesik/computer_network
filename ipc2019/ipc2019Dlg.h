@@ -138,10 +138,10 @@ private:
 	static CString FormatMac(const unsigned char* address);
 
     // [assignment6] 모든 화면은 하나의 IP/ARP/NI 인스턴스를 공유한다. 화면 선택은 표시만 바꾼다.
-    // [assignment6] 위 설명의 단일 NIC 기본 모드는 유지하며, PARP 중계 모드만 두 번째 스택을 추가로 공유한다.
+    // [assignment7] 위 설명의 단일 NIC 기본 모드는 유지하며, PARP 중계 모드만 두 번째 스택을 추가로 공유한다.
     CIPLayer* m_IP = nullptr;
     CARPLayer* m_ARP = nullptr;
-    // [assignment6] PARP는 양쪽 LAN이 필요하므로 두 번째 NI/Ethernet/IP/ARP 인스턴스를 소유한다.
+    // [assignment7] PARP는 양쪽 LAN이 필요하므로 두 번째 NI/Ethernet/IP/ARP 인스턴스를 소유한다.
     CNILayer* m_NI2 = nullptr;
     CEthernetLayer* m_Ethernet2 = nullptr;
     CIPLayer* m_IP2 = nullptr;

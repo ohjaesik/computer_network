@@ -81,9 +81,11 @@
 #define ARP_COMPLETE_TIMEOUT_MS     (20ULL * 60 * 1000)
 #define ARP_INCOMPLETE_TIMEOUT_MS   (3ULL * 60 * 1000)
 #define ARP_REQUEST_INTERVAL_MS     1000ULL
+// [assignment7] 자신이 보낸 GARP의 재캡처를 주소 충돌로 처리하지 않는 시간 범위다.
 #define ARP_OWN_GARP_WINDOW_MS      5000ULL
+// [assignment6] 일반 ARP 캐시의 최대 항목 수를 제한한다.
 #define ARP_CACHE_MAX_ENTRIES       256
-// [assignment6] RFC 5227의 ACD: 3회 Probe 후 2회 Announcement, 충돌 재발 시 주소 사용 중단.
+// [assignment7] RFC 5227의 ACD: 3회 Probe 후 2회 Announcement, 충돌 재발 시 주소 사용 중단.
 #define ARP_PROBE_WAIT_MS           1000ULL
 #define ARP_PROBE_COUNT             3
 #define ARP_PROBE_MIN_MS            1000ULL
@@ -94,7 +96,7 @@
 #define ARP_DEFEND_INTERVAL_MS      10000ULL
 #define ARP_MAX_CONFLICTS           10
 #define ARP_RATE_LIMIT_MS           60000ULL
-// [assignment6] PARP로 유입된 원본 IPv4 패킷을 다음 홉 ARP 완료까지 유한 큐에 보관한다.
+// [assignment7] PARP로 유입된 원본 IPv4 패킷을 다음 홉 ARP 완료까지 유한 큐에 보관한다.
 #define ROUTER_PENDING_MAX_BYTES   (2 * 1024 * 1024)
 #define ROUTER_MAX_INTERFACES       2
 #define IP_PROTOCOL_ICMP           1

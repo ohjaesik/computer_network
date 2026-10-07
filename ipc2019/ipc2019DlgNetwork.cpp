@@ -140,7 +140,7 @@ void Cipc2019Dlg::SetIpNetworkAddress()
         m_router.BindInterface(1,secondIp,secondMask,m_ARP2,m_Ethernet2);
         m_ARP2->SetRouter(&m_router,1); m_IP2->SetRouter(&m_router,1);
     }
-    // [assignment6] 캐시/주소/중계 객체를 준비한 뒤 Probe를 시작한다. 검사 완료 전 앱은 활성화하지 않는다.
+    // [assignment7] 캐시/주소/중계 객체를 준비한 뒤 Probe를 시작한다. 검사 완료 전 앱은 활성화하지 않는다.
     const bool checksStarted = m_ARP->BeginAddressCheck(mac) && (!second || m_ARP2->BeginAddressCheck(secondMac));
     if (!checksStarted || !m_NI->StartReceive() || (second && !m_NI2->StartReceive())) {
         AfxMessageBox(_T("NI 수신 시작 실패")); m_router.Suspend(); m_NI->CloseAdapter(); m_NI2->CloseAdapter();
@@ -209,7 +209,7 @@ void Cipc2019Dlg::PollIpNetwork()
     m_ARP->Tick(now); m_IP->Tick(now);
     if (m_secondConnected) { m_ARP2->Tick(now); m_IP2->Tick(now); }
     m_router.Tick(now); RefreshIpControls();
-    // [assignment6] GARP로 논리 MAC이 바뀌면 공통 표시/Proxy Reply MAC도 같은 값으로 갱신한다.
+    // [assignment7] GARP로 논리 MAC이 바뀌면 공통 표시/Proxy Reply MAC도 같은 값으로 갱신한다.
     unsigned char mac[6]; m_ARP->GetEffectiveMac(mac); m_sourceMac = FormatMac(mac); SetDlgItemText(IDC_EDIT_SRC,m_sourceMac);
     if (m_secondConnected) { m_ARP2->GetEffectiveMac(mac); SetDlgItemText(IDC_EDIT_SOURCE_MAC2,FormatMac(mac)); }
     m_arpDialog.RefreshTables();

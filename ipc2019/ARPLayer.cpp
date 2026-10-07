@@ -15,7 +15,7 @@ void CARPLayer::Configure(uint32_t localIp, const unsigned char* localMac, CIPLa
     m_localIp = localIp;
     memcpy(m_localMac, localMac, sizeof(m_localMac));
     memcpy(m_hardwareMac, localMac, 6); memcpy(m_candidateMac, localMac, 6);
-    m_addressState = ADDRESS_STATE::Ready; // [assignment6] UI는 수신 시작 직전에 BeginAddressCheck로 Probe를 시작한다.
+    m_addressState = ADDRESS_STATE::Ready; // [assignment7] UI는 수신 시작 직전에 BeginAddressCheck로 Probe를 시작한다.
     m_ipLayer = ipLayer;
 }
 
@@ -101,17 +101,17 @@ BOOL CARPLayer::SendGratuitous(const unsigned char* advertisedMac)
     if (!m_localIp || !IsUnicastMac(advertisedMac)) return FALSE;
     unsigned char current[6]; GetEffectiveMac(current);
     if (memcmp(current,advertisedMac,6) || !IsUsable()) {
-        // [assignment6] 이전에는 광고만 바뀌었지만 이제 변경 MAC을 검증 후 실제 앱 송신/필터에도 적용한다.
+        // [assignment7] 이전에는 광고만 바뀌었지만 이제 변경 MAC을 검증 후 실제 앱 송신/필터에도 적용한다.
         return BeginAddressCheck(advertisedMac);
     }
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        // [assignment6] Npcap이 방금 송신한 실습용 GARP를 다시 캡처해도 자신의 IP 충돌로 오인하지 않는다.
+        // [assignment7] Npcap이 방금 송신한 실습용 GARP를 다시 캡처해도 자신의 IP 충돌로 오인하지 않는다.
         memcpy(m_lastGarpMac, advertisedMac, 6); m_lastGarpAt = GetTickCount64();
         m_addressState = ADDRESS_STATE::Announcing; m_announcementsSent = 1;
         m_nextActionAt = GetTickCount64() + ARP_ANNOUNCE_INTERVAL_MS;
     }
-    // [assignment6] GARP는 별도 opcode가 아니다. Sender IP == Target IP인 ARP Request를 광고한다.
+    // [assignment7] GARP는 별도 opcode가 아니다. Sender IP == Target IP인 ARP Request를 광고한다.
     const BOOL sent = SendAnnouncement(advertisedMac);
     if (!sent) { std::lock_guard<std::mutex> lock(m_mutex); m_addressState = ADDRESS_STATE::Conflict; }
     NotifyChanged(); Report(sent ? _T("GARP 광고 1/2 송신 (응답 대기 없음)") : _T("GARP 송신 실패: 주소 사용 중단"));
@@ -130,7 +130,7 @@ bool CARPLayer::BeginAddressCheck(const unsigned char* candidateMac)
         m_probesSent = m_announcementsSent = 0; m_lastAttemptAt = now;
         m_nextActionAt = now + std::uniform_int_distribution<unsigned int>(0,static_cast<unsigned int>(ARP_PROBE_WAIT_MS))(m_random);
     }
-    // [assignment6] 광고 전에는 유효 MAC을 바꾸지 않되 Probe에 대한 unicast Reply를 새 MAC으로 수신한다.
+    // [assignment7] 광고 전에는 유효 MAC을 바꾸지 않되 Probe에 대한 unicast Reply를 새 MAC으로 수신한다.
     if (GetUnderLayer()) static_cast<CEthernetLayer*>(GetUnderLayer())->SetProbeAddress(candidateMac);
     NotifyChanged(); Report(_T("주소 충돌 검사 시작: Probe 3회 동안 IP 송수신/중계를 보류합니다.")); return true;
 }
@@ -147,6 +147,7 @@ void CARPLayer::GetEffectiveMac(unsigned char* mac) const
 {
     std::lock_guard<std::mutex> lock(m_mutex); memcpy(mac,m_localMac,6);
 }
+// [assignment7] Sender IP와 Target IP를 내 IP로 설정한 broadcast GARP를 전송한다.
 BOOL CARPLayer::SendAnnouncement(const unsigned char* mac)
 {
     const unsigned char broadcast[6] = {255,255,255,255,255,255}, unknown[6] = {};
@@ -167,7 +168,7 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
 
     const uint32_t senderIp = ReadIp(packet.senderIp), targetIp = ReadIp(packet.targetIp);
     if (senderIp && !IsUnicastIp(senderIp)) return FALSE;
-    // [assignment6] Probe에 대한 Reply는 요청자의 SPA가 0이었으므로 Target IP도 0.0.0.0이다.
+    // [assignment7] Probe에 대한 Reply는 요청자의 SPA가 0이었으므로 Target IP도 0.0.0.0이다.
     if ((targetIp && !IsUnicastIp(targetIp)) || (!targetIp && operation != ARP_OPERATION_REPLY)) return FALSE;
     bool changed = false, reply = false, conflict = false, proxyReply = false, defend = false, stopped = false;
     unsigned char local[6] = {};
@@ -178,9 +179,9 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
         registeredProxy = std::any_of(m_proxies.begin(),m_proxies.end(),
             [targetIp](const ARP_PROXY_ENTRY& entry) { return entry.ip == targetIp; });
     }
-    // [assignment6] ARP lock 밖에서 경로를 확인한다. route lock -> ARP lookup과의 교착을 막는다.
-    // [assignment6] 중계 PC 앱이 NIC 1의 IP로 NIC 2 쪽에 송신했을 때 돌아오는 응답을 위해
-    // [assignment6] 다른 NIC에 속한 자신의 IP도 대리 해석한다. 충돌로 사용 중단된 주소에는 응답하지 않는다.
+    // [assignment7] ARP lock 밖에서 경로를 확인한다. route lock -> ARP lookup과의 교착을 막는다.
+    // [assignment7] 중계 PC 앱이 NIC 1의 IP로 NIC 2 쪽에 송신했을 때 돌아오는 응답을 위해
+    // [assignment7] 다른 NIC에 속한 자신의 IP도 대리 해석한다. 충돌로 사용 중단된 주소에는 응답하지 않는다.
     const bool proxyAvailable = m_router &&
         (registeredProxy || (targetIp != m_localIp && m_router->IsLocalAddress(targetIp))) &&
         m_router->CanProxyReply(m_interfaceIndex,targetIp);
@@ -195,6 +196,7 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
         conflict = senderIp == m_localIp || (m_addressState == ADDRESS_STATE::Probing &&
             operation == ARP_OPERATION_REQUEST && !senderIp && targetIp == m_localIp);
         memcpy(local,m_localMac,6);
+        // [assignment7] GARP/ACD 확장: 주소 충돌 시 방어 광고를 보내거나 주소 사용을 중단한다.
         if (conflict && m_addressState != ADDRESS_STATE::Conflict) {
             ++m_conflicts;
             if (m_addressState == ADDRESS_STATE::Probing || (m_lastDefendAt && now - m_lastDefendAt < ARP_DEFEND_INTERVAL_MS)) {
@@ -208,8 +210,8 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
             auto entry = std::find_if(m_cache.begin(), m_cache.end(),
                 [senderIp](const ARP_CACHE_ENTRY& value) { return value.ip == senderIp; });
             // [assignment6] RFC 826: 기존 Sender 매핑은 갱신하고, 새 항목은 자신/Proxy 대상 요청에서 학습한다.
-            // [assignment6] GARP도 기존 매핑을 갱신한다. Probe의 Sender IP 0.0.0.0은 캐시에 넣지 않는다.
-            // [assignment6] 유효한 unsolicited GARP는 새 항목도 학습하여 처음 보는 IP/MAC 광고도 반영한다.
+            // [assignment7] GARP도 기존 매핑을 갱신한다. Probe의 Sender IP 0.0.0.0은 캐시에 넣지 않는다.
+            // [assignment7] 유효한 unsolicited GARP는 새 항목도 학습하여 처음 보는 IP/MAC 광고도 반영한다.
             const bool announcement = senderIp && senderIp == targetIp;
             if (senderIp && senderIp != m_localIp && (entry != m_cache.end() || forUs || announcement)) {
                 if (entry == m_cache.end() && m_cache.size() < ARP_CACHE_MAX_ENTRIES) {
@@ -239,8 +241,8 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
         if (operation == ARP_OPERATION_REPLY) Report(_T("ARP Reply 수신: 캐시를 갱신했습니다."));
     }
     if (reply) {
-        // [assignment6] PARP는 Target IP를 자신의 MAC에 대응시켜 대리 응답한다.
-        // [assignment6] 대리 응답한 IP 데이터는 연결된 CIPRouter가 다른 NIC의 next hop으로 전달한다.
+        // [assignment7] PARP는 Target IP를 자신의 MAC에 대응시켜 대리 응답한다.
+        // [assignment7] 대리 응답한 IP 데이터는 연결된 CIPRouter가 다른 NIC의 next hop으로 전달한다.
         const BOOL sent = Transmit(ARP_OPERATION_REPLY, targetIp, local,
             senderIp, packet.senderMac, packet.senderMac);
         if (!sent) Report(_T("ARP Reply 송신 실패"));
@@ -262,6 +264,7 @@ void CARPLayer::Tick(ULONGLONG now)
         m_cache.erase(std::remove_if(m_cache.begin(), m_cache.end(),
             [now](const ARP_CACHE_ENTRY& entry) { return now >= entry.expiresAt; }), m_cache.end());
         changed = before != m_cache.size();
+        // [assignment7] GARP/ACD의 Probe·Announcement 타이머 상태를 진행한다. 위 캐시 만료는 과제 6이다.
         if (m_addressState == ADDRESS_STATE::Probing && now >= m_nextActionAt) {
             memcpy(mac,m_candidateMac,6);
             if (m_probesSent < ARP_PROBE_COUNT) {
@@ -270,7 +273,7 @@ void CARPLayer::Tick(ULONGLONG now)
                     std::uniform_int_distribution<unsigned int>(static_cast<unsigned int>(ARP_PROBE_MIN_MS),
                         static_cast<unsigned int>(ARP_PROBE_MAX_MS))(m_random));
             } else {
-                // [assignment6] 검사를 통과한 MAC을 실제 Ethernet 송신 및 수신 필터와 일치시킨다.
+                // [assignment7] 검사를 통과한 MAC을 실제 Ethernet 송신 및 수신 필터와 일치시킨다.
                 memcpy(m_localMac,m_candidateMac,6);
                 m_announcementsSent = 1; m_nextActionAt = now + ARP_ANNOUNCE_INTERVAL_MS;
                 m_lastDefendAt = 0; action = 2;
@@ -291,8 +294,8 @@ void CARPLayer::Tick(ULONGLONG now)
             sent = SendAnnouncement(mac);
             if (sent) {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                // [assignment6] 첫 Announcement가 송신된 뒤에만 주소를 usable로 전환한다.
-                // [assignment6] 그 사이 수신 worker가 감지한 Conflict 상태는 다시 Ready로 덮어쓰지 않는다.
+                // [assignment7] 첫 Announcement가 송신된 뒤에만 주소를 usable로 전환한다.
+                // [assignment7] 그 사이 수신 worker가 감지한 Conflict 상태는 다시 Ready로 덮어쓰지 않는다.
                 if (m_addressState != ADDRESS_STATE::Conflict) {
                     m_addressState = m_announcementsSent >= ARP_ANNOUNCE_COUNT ? ADDRESS_STATE::Ready : ADDRESS_STATE::Announcing;
                     Report(_T("주소 검사 완료: GARP Announcement 송신 · IP 송수신 사용 가능"));
@@ -323,7 +326,7 @@ void CARPLayer::ClearCache()
 bool CARPLayer::AddProxy(uint32_t ip, const CString& device, int outgoing, uint32_t nextHop)
 {
     if (!m_localIp || !IsUnicastIp(ip) || ip == m_localIp) return false;
-    // [assignment6] 실제 다른 NIC의 경로가 없는 PARP 등록은 거부해 트래픽 black hole을 만들지 않는다.
+    // [assignment7] 실제 다른 NIC의 경로가 없는 PARP 등록은 거부해 트래픽 black hole을 만들지 않는다.
     if (!m_router || outgoing < 0 || !m_router->InstallProxyRoute(m_interfaceIndex,ip,outgoing,nextHop)) return false;
     std::lock_guard<std::mutex> lock(m_mutex);
     ARP_PROXY_ENTRY entry; entry.ip = ip; entry.device = device; entry.outgoing = outgoing; entry.nextHop = nextHop;
