@@ -81,10 +81,10 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	m_LayerMgr.AddLayer(new CNILayer("NI"));
 	m_LayerMgr.AddLayer(new CFileAppLayer("FileApp"));
 #if USE_IP_STACK
-	// [assignment6] IP는 앱 다중화, ARP는 주소 해석과 Proxy/GARP를 담당한다.
+	// [assignment6] IP는 앱 다중화, ARP는 주소 해석과 [assignment7] Proxy/GARP를 담당한다.
 	m_LayerMgr.AddLayer(new CIPLayer("IP"));
 	m_LayerMgr.AddLayer(new CARPLayer("ARP"));
-	// [assignment6] 원래 스택은 보존하고 PARP의 다른 물리 LAN용 스택을 추가한다.
+	// [assignment7] 원래 스택은 보존하고 PARP의 다른 물리 LAN용 스택을 추가한다.
 	m_LayerMgr.AddLayer(new CNILayer("NI2"));
 	m_LayerMgr.AddLayer(new CEthernetLayer("Ethernet2"));
 	m_LayerMgr.AddLayer(new CIPLayer("IP2"));
@@ -104,6 +104,7 @@ Cipc2019Dlg::Cipc2019Dlg(CWnd* pParent /*=nullptr*/)
 	m_LayerMgr.ConnectLayers("NI ( *Ethernet ( *IP ( *ChatApp ( *ChatDlg ) *FileApp ( +ChatDlg ) ) *ARP ) )");
 	m_IP = static_cast<CIPLayer*>(m_LayerMgr.GetLayer("IP"));
 	m_ARP = static_cast<CARPLayer*>(m_LayerMgr.GetLayer("ARP"));
+	// [assignment7] PARP용 두 번째 링크를 연결하고 기존 ChatApp/FileApp 수신 객체를 공유한다.
 	m_LayerMgr.ConnectLayers("NI2 ( *Ethernet2 ( *IP2 ( +ChatApp +FileApp ) *ARP2 ) )");
 	m_NI2 = static_cast<CNILayer*>(m_LayerMgr.GetLayer("NI2"));
 	m_Ethernet2 = static_cast<CEthernetLayer*>(m_LayerMgr.GetLayer("Ethernet2"));

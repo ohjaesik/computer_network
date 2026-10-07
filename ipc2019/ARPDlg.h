@@ -3,7 +3,7 @@
 #include "ARPLayer.h"
 #include "resource.h"
 
-// [assignment6] 강의자료의 ARP Cache / Proxy ARP / Gratuitous ARP 배치를 가진 자식 화면이다.
+// [assignment6] 강의자료의 ARP Cache / [assignment7] Proxy ARP / Gratuitous ARP 배치를 가진 자식 화면이다.
 // [assignment6] 프로토콜이나 수신 스레드를 소유하지 않으므로 화면을 숨겨도 네트워크 동작은 유지된다.
 class CARPDlg : public CDialogEx {
 public:

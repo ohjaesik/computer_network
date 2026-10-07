@@ -7,15 +7,15 @@
 class CARPLayer;
 class CEthernetLayer;
 
-// [assignment6] PARP는 MAC 대리 응답이고, 응답을 믿고 도착한 IP 데이터의 전달은 이 객체가 맡는다.
-// [assignment6] 두 물리 NIC의 connected subnet 및 사용자가 등록한 /32 next-hop 경로를 공유한다.
-// [assignment6] NAT/동적 라우팅은 하지 않는다. 앱 식별값과 무관하게 원본 IPv4 Protocol을 보존한다.
+// [assignment7] PARP는 MAC 대리 응답이고, 응답을 믿고 도착한 IP 데이터의 전달은 이 객체가 맡는다.
+// [assignment7] 두 물리 NIC의 connected subnet 및 사용자가 등록한 /32 next-hop 경로를 공유한다.
+// [assignment7] NAT/동적 라우팅은 하지 않는다. 앱 식별값과 무관하게 원본 IPv4 Protocol을 보존한다.
 class CIPRouter {
 public:
     struct STATS { uint64_t forwarded = 0, dropped = 0; size_t waiting = 0; };
     void BindInterface(int index, uint32_t ip, uint32_t mask, CARPLayer* arp, CEthernetLayer* ethernet);
-    void Reset(); // [assignment6] 양쪽 NI worker를 먼저 종료한 뒤 호출한다.
-    void Suspend(); // [assignment6] NIC를 닫기 전에 교차 NIC 송신을 먼저 정지한다.
+    void Reset(); // [assignment7] 양쪽 NI worker를 먼저 종료한 뒤 호출한다.
+    void Suspend(); // [assignment7] NIC를 닫기 전에 교차 NIC 송신을 먼저 정지한다.
     void SetNotifyWindow(HWND window) { m_window = window; }
     bool InstallProxyRoute(int incoming, uint32_t target, int outgoing, uint32_t nextHop);
     void RemoveProxyRoute(int incoming, uint32_t target);

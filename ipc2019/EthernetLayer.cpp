@@ -113,7 +113,7 @@ BOOL CEthernetLayer::Receive(unsigned char* ppayload)
 // [assignment4] 파일 스레드와 UI의 채팅 전송이 동시에 이 함수에 들어올 수 있다.
 // [assignment4] 공통 m_sHeader의 data/type을 덮어쓰지 않고 각 호출의 지역 프레임을 만들어 보낸다.
 // [assignment4] 주소는 수신/송신을 멈춘 설정 단계에서만 바뀌므로 전송 도중 변경되지 않는다.
-// [assignment6] GARP의 논리 MAC 변경은 별도 잠금으로 보호하며 파일 송신 중에는 UI에서 변경을 금지한다.
+// [assignment7] GARP의 논리 MAC 변경은 별도 잠금으로 보호하며 파일 송신 중에는 UI에서 변경을 금지한다.
 BOOL CEthernetLayer::Send(unsigned char* payload, int length, unsigned short type)
 {
 #if USE_IP_STACK
@@ -159,11 +159,11 @@ BOOL CEthernetLayer::Receive(unsigned char* payload, int length, const unsigned 
 	unsigned short type = ntohs(frame->enet_type);
 	#if USE_IP_STACK
 	// [assignment6] 채팅/파일은 IP가 구분한다. Ethernet은 IPv4와 ARP만 분기한다.
-	// [assignment6] 두 번째 스택의 이름(IP2/ARP2)에 의존하지 않고 명시한 계층 포인터를 우선 사용한다.
+	// [assignment7] 두 번째 스택의 이름(IP2/ARP2)에 의존하지 않고 명시한 계층 포인터를 우선 사용한다.
 	CBaseLayer* protocolLayer = type == ETHERNET_TYPE_IPV4 ? m_ipLayer :
 		(type == ETHERNET_TYPE_ARP ? m_arpLayer : nullptr);
 	if (protocolLayer) {
-		// [assignment6] L2 broadcast에 실린 unicast IP를 중계하지 않아 ICMP 반사/브로드캐스트 루프를 막는다.
+		// [assignment7] L2 broadcast에 실린 unicast IP를 중계하지 않아 ICMP 반사/브로드캐스트 루프를 막는다.
 		if (type == ETHERNET_TYPE_IPV4 && !memcmp(frame->enet_dstaddr, broadcast, 6) &&
 			length >= ETHER_HEADER_SIZE + IP_HEADER_SIZE &&
 			memcmp(frame->enet_data + 16, "\xff\xff\xff\xff", 4)) return FALSE;

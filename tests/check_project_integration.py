@@ -66,7 +66,7 @@ for message in ('ON_WM_SIZE()', 'ON_WM_VSCROLL()', 'ON_WM_HSCROLL()', 'ON_WM_MOU
     assert message in main_cpp, f'Missing scroll message handler: {message}'
 assert 'if (::GetFocus() != m_lastScrollFocus) RevealFocusedControl();' in main_cpp
 
-# [assignment6] 새 중계 구현에서도 기존 과제 4 주석을 원문 그대로 보존했는지 검사한다.
+# [assignment7] 새 중계 구현에서도 기존 과제 4 주석을 원문 그대로 보존했는지 검사한다.
 baseline = None
 for revision in ('a33ccf64e78d32280a2d1663f7d1f7502508f145', 'cd6d6c3344d7fe14e607efd072000b80078d8895'):
     if subprocess.run(['git', 'cat-file', '-e', revision + '^{commit}'], cwd=root, capture_output=True).returncode == 0:
