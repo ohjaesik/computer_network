@@ -150,9 +150,46 @@ int main() {
         assert(!a.arp.Lookup(b.address,mac) && !b.arp.Lookup(a.address,mac));
     }
     {
+        // [assignment7] 강의자료의 두 PC/한 LAN 조건: 출력 NIC 없이 Proxy IP를 등록하고 대리 Reply를 확인한다.
+        // [assignment7] 요청자의 캐시는 가상 대상 IP -> 응답 PC MAC으로 완성되고 응답 PC는 요청자의 주소를 학습한다.
+        Host a(1), proxy(2); const uint32_t target=0xc0a80a63;
+        CIPRouter router;
+        router.BindInterface(0,proxy.address,0xffffff00,&proxy.arp,&proxy.ethernet);
+        proxy.arp.SetRouter(&router,0); proxy.ip.SetRouter(&router,0);
+        assert(proxy.arp.AddProxy(target,_T("NIC 1")));
+        assert(!proxy.arp.AddProxy(target,_T("duplicate")));
+        assert(!proxy.arp.AddProxy(proxy.address,_T("own IP")));
+        assert(!proxy.arp.AddProxy(IPV4_BROADCAST,_T("broadcast")));
+        assert(!proxy.arp.AddProxy(0xc0a80a00,_T("subnet network")));
+        assert(!proxy.arp.AddProxy(0xc0a80aff,_T("subnet broadcast")));
+        assert(!proxy.arp.AddProxy(target+1,_T("invalid next hop"),ARP_PROXY_REPLY_ONLY_INTERFACE,a.address));
+        assert(!router.CanProxyReply(0,target)); // [assignment7] 시연 등록은 실제 라우터 경로를 만들지 않는다.
+        unsigned char mac[6];
+        assert(a.arp.SendRequest(target,true)); Pump(a,proxy);
+        assert(a.arp.Lookup(target,mac) && !memcmp(mac,proxy.mac,6));
+        assert(proxy.arp.Lookup(a.address,mac) && !memcmp(mac,a.mac,6));
+        const auto reply=proxy.ni.history.back();
+        assert(Type(reply)==ETHERNET_TYPE_ARP && reply[21]==ARP_OPERATION_REPLY);
+        assert(ReadIp(reply.data()+28)==target && ReadIp(reply.data()+38)==a.address);
+        assert(!memcmp(reply.data(),a.mac,6) && !memcmp(reply.data()+6,proxy.mac,6));
+        assert(!memcmp(reply.data()+22,proxy.mac,6) && !memcmp(reply.data()+32,a.mac,6));
+        proxy.arp.ClearCache();
+        std::vector<ARP_CACHE_ENTRY> cache; std::vector<ARP_PROXY_ENTRY> proxies;
+        proxy.arp.GetSnapshot(cache,proxies);
+        assert(cache.empty() && proxies.size()==1 && proxies[0].outgoing==ARP_PROXY_REPLY_ONLY_INTERFACE);
+        // [assignment7] Proxy 삭제 후 재요청에는 대리 응답하지 않으며 요청자 캐시는 Incomplete로 남는다.
+        proxy.arp.DeleteProxy(target); a.arp.ClearCache();
+        proxy.arp.GetSnapshot(cache,proxies); assert(proxies.empty());
+        const size_t replies=proxy.ni.history.size();
+        assert(a.arp.SendRequest(target,true)); Pump(a,proxy);
+        assert(!a.arp.Lookup(target,mac) && proxy.ni.history.size()==replies);
+        a.arp.GetSnapshot(cache,proxies); assert(cache.size()==1 && !cache[0].complete);
+    }
+    {
         Host a(1), proxy(2); const uint32_t target=0xc0a80a63;
         unsigned char mac[6];
-        assert(!proxy.arp.AddProxy(target,_T("NIC 1"))); // no real egress route: must not black-hole traffic
+        // [assignment7] 실제 중계 모드를 명시한 경우에는 출력 경로 없는 등록을 계속 거부한다.
+        assert(!proxy.arp.AddProxy(target,_T("NIC 1"),0)); // no real egress route: must not black-hole traffic
         assert(a.arp.SendRequest(target,true)); Pump(a,proxy); assert(!a.arp.Lookup(target,mac));
         std::vector<ARP_CACHE_ENTRY> entries; std::vector<ARP_PROXY_ENTRY> proxies;
         a.arp.GetSnapshot(entries,proxies); assert(entries.size()==1 && !entries[0].complete);
@@ -322,5 +359,5 @@ int main() {
         assert(b.ui.messages.size()==1 && b.ui.messages[0]==maximum);
         assert(!a.chat.Send(maximum.data(),CHAT_MAX_MESSAGE_SIZE+1));
     }
-    std::cout << "PASS: real layer linkage, two-LAN PARP bidirectional forwarding, byte-exact routed files (9 sizes), next-hop ARP/timeout, TTL/ICMP/checksum, GARP Probe/Announcement/MAC switch/conflict defense, cache expiry, chat demux/MTU and broadcast\n";
+    std::cout << "PASS: real layer linkage, single-NIC PARP reply/cache/delete, two-LAN PARP bidirectional forwarding, byte-exact routed files (9 sizes), next-hop ARP/timeout, TTL/ICMP/checksum, GARP Probe/Announcement/MAC switch/conflict defense, cache expiry, chat demux/MTU and broadcast\n";
 }

@@ -32,7 +32,7 @@ BOOL CARPDlg::OnInitDialog()
     m_cache.InsertColumn(2, _T("Status"), LVCFMT_LEFT, width * 26 / 100);
     m_proxy.GetClientRect(&rect);
     const int proxyWidth = rect.Width() - GetSystemMetrics(SM_CXVSCROLL) - 6;
-    m_proxy.InsertColumn(0, _T("출력 NIC"), LVCFMT_LEFT, proxyWidth * 18 / 100);
+    m_proxy.InsertColumn(0, _T("Device"), LVCFMT_LEFT, proxyWidth * 18 / 100);
     m_proxy.InsertColumn(1, _T("Proxy IP"), LVCFMT_LEFT, proxyWidth * 24 / 100);
     m_proxy.InsertColumn(2, _T("Reply MAC"), LVCFMT_LEFT, proxyWidth * 34 / 100);
     m_proxy.InsertColumn(3, _T("Next hop"), LVCFMT_LEFT, proxyWidth * 24 / 100);
@@ -60,18 +60,26 @@ void CARPDlg::OnInterfaceChanged()
     m_selected = (std::max)(0,m_interfaceCombo.GetCurSel());
     m_layer = m_layers[m_selected]; m_connected = m_connections[m_selected];
     m_device = m_devices[m_selected]; m_mac = m_macs[m_selected];
-    SetDlgItemText(IDC_GARP_MAC,m_mac); m_outgoingCombo.SetCurSel(1-m_selected);
+    SetDlgItemText(IDC_GARP_MAC,m_mac);
+    // [assignment7] NIC 하나에서는 현재 NIC로 대리 응답한다. 두 NIC가 연결되면 기존 반대쪽 출력을 선택한다.
+    m_outgoingCombo.SetCurSel(m_connections[1-m_selected] ? 1-m_selected : m_selected);
     SetStatus(m_connected ? _T("선택 NIC의 ARP/GARP 상태를 표시합니다.") : _T("선택 NIC가 연결되지 않았습니다."));
     RefreshTables();
 }
 void CARPDlg::RefreshControls()
 {
     const bool usable = m_connected && m_layer && m_layer->IsUsable();
+    const bool routing = m_connections[1-m_selected];
+    const bool outputUsable = routing && m_layers[1-m_selected] && m_layers[1-m_selected]->IsUsable();
     const int ids[] = {IDC_ARP_DELETE,IDC_ARP_CLEAR,IDC_PROXY_DELETE,IDC_ARP_TARGET,
         IDC_PROXY_IP,IDC_GARP_MAC,IDC_PROXY_OUTGOING,IDC_PROXY_NEXT_HOP};
     for (int id : ids) GetDlgItem(id)->EnableWindow(m_connected);
     GetDlgItem(IDC_ARP_SEND)->EnableWindow(usable);
-    GetDlgItem(IDC_PROXY_ADD)->EnableWindow(usable && m_connections[1-m_selected] && m_layers[1-m_selected]->IsUsable());
+    // [assignment7] 강의자료의 두 PC/한 LAN 시연은 NIC 하나로 Add를 허용한다.
+    // [assignment7] 두 NIC 중계에서는 양쪽 주소 검사가 끝나야 Add할 수 있고 출력/next-hop 입력을 활성화한다.
+    GetDlgItem(IDC_PROXY_ADD)->EnableWindow(usable && (!routing || outputUsable));
+    GetDlgItem(IDC_PROXY_OUTGOING)->EnableWindow(usable && outputUsable);
+    GetDlgItem(IDC_PROXY_NEXT_HOP)->EnableWindow(usable && outputUsable);
     GetDlgItem(IDC_GARP_SEND)->EnableWindow(m_connected && m_garpAllowed && m_layer &&
         m_layer->GetAddressState() != CARPLayer::ADDRESS_STATE::Probing);
 }
@@ -104,7 +112,9 @@ void CARPDlg::RefreshTables()
         int row = m_proxy.InsertItem(m_proxy.GetItemCount(), entry.device);
         m_proxy.SetItemText(row, 1, NetworkAddress::FormatIp(entry.ip));
         m_proxy.SetItemText(row, 2, m_mac);
-        m_proxy.SetItemText(row, 3, entry.nextHop ? NetworkAddress::FormatIp(entry.nextHop) : CString(_T("Direct")));
+        // [assignment7] 단일 NIC 시연 행은 실제 중계 경로가 없음을 표시하여 파일/채팅 전달과 구분한다.
+        m_proxy.SetItemText(row, 3, entry.outgoing == ARP_PROXY_REPLY_ONLY_INTERFACE ? CString(_T("대리 응답")) :
+            (entry.nextHop ? NetworkAddress::FormatIp(entry.nextHop) : CString(_T("Direct"))));
         m_proxy.SetItemData(row, static_cast<DWORD_PTR>(entry.ip));
         if (entry.ip == proxyIp) m_proxy.SetItemState(row, LVIS_SELECTED, LVIS_SELECTED);
     }
@@ -142,15 +152,26 @@ void CARPDlg::OnClear()
 void CARPDlg::OnProxyAdd()
 {
     uint32_t ip; if (!ReadTarget(IDC_PROXY_IP, ip)) return;
-    const int outgoing = m_outgoingCombo.GetCurSel();
-    CString text; GetDlgItemText(IDC_PROXY_NEXT_HOP,text); text.Trim(); uint32_t nextHop = 0;
-    if (!text.IsEmpty() && (!NetworkAddress::ParseIp(text,nextHop) || !NetworkPackets::IsUnicastIp(nextHop))) {
-        AfxMessageBox(_T("다음 홉 IP를 확인하세요. 직접 연결된 대상이면 빈칸으로 둡니다.")); return;
+    // [assignment7] 두 번째 NIC 연결 여부로 강의 시연과 기존 실제 중계를 구분한다.
+    // [assignment7] 한 NIC에서는 비활성화된 출력/next-hop 칸의 이전 값을 사용하지 않는다.
+    const bool routing = m_connections[1-m_selected];
+    const int outgoing = routing ? m_outgoingCombo.GetCurSel() : ARP_PROXY_REPLY_ONLY_INTERFACE;
+    uint32_t nextHop = 0;
+    if (routing) {
+        CString text; GetDlgItemText(IDC_PROXY_NEXT_HOP,text); text.Trim();
+        if (!text.IsEmpty() && (!NetworkAddress::ParseIp(text,nextHop) || !NetworkPackets::IsUnicastIp(nextHop))) {
+            AfxMessageBox(_T("다음 홉 IP를 확인하세요. 직접 연결된 대상이면 빈칸으로 둡니다.")); return;
+        }
     }
-    CString device; device.Format(_T("NIC %d"),outgoing+1);
+    CString device; device.Format(_T("NIC %d"),(routing ? outgoing : m_selected)+1);
     // [assignment7] 표에 적는 MAC은 요청이 들어오는 NIC의 MAC, 선택하는 Device는 실제 출력 NIC다.
+    // [assignment7] 단일 NIC 시연의 Device는 대리 응답을 보낼 현재 NIC이고 Reply MAC은 이 NIC의 실제 사용 MAC이다.
     if (!m_layer->AddProxy(ip,device,outgoing,nextHop))
-        AfxMessageBox(_T("Proxy 등록 실패: 두 NIC 연결, 서로 다른 출력 NIC, next-hop subnet, 중복/방송/내 IP를 확인하세요."));
+        AfxMessageBox(routing ?
+            _T("Proxy 등록 실패: 두 NIC 연결, 서로 다른 출력 NIC, next-hop subnet, 중복/방송/내 IP를 확인하세요.") :
+            _T("Proxy 등록 실패: 연결/주소 검사 완료 여부와 중복/방송/내 IP를 확인하세요."));
+    else SetStatus(routing ? _T("Proxy 등록 완료: 대리 응답과 두 NIC IP 중계") :
+        _T("Proxy 등록 완료: 단일 NIC에서 선택 NIC의 MAC으로 대리 응답합니다."));
     RefreshTables();
 }
 void CARPDlg::OnProxyDelete()
