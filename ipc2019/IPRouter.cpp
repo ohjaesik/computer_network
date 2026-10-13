@@ -56,6 +56,14 @@ bool CIPRouter::FindRoute(uint32_t destination, int& outgoing, uint32_t& nextHop
     if (best < 0) return false;
     outgoing = best; nextHop = destination; return true;
 }
+bool CIPRouter::IsValidProxyTarget(uint32_t target)
+{
+    // [assignment7] 출력 경로 유무와 독립된 주소 검사다. 단일 NIC 시연이 기존 주소 검사를 우회하지 않게 한다.
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_running || !IsUnicastIp(target) || IsDirectedBroadcast(target)) return false;
+    for (const auto& port : m_interfaces) if (target == port.ip) return false;
+    return true;
+}
 bool CIPRouter::InstallProxyRoute(int incoming, uint32_t target, int outgoing, uint32_t nextHop)
 {
     std::lock_guard<std::mutex> lock(m_mutex);

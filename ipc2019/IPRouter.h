@@ -18,6 +18,8 @@ public:
     void Suspend(); // [assignment7] NIC를 닫기 전에 교차 NIC 송신을 먼저 정지한다.
     void SetNotifyWindow(HWND window) { m_window = window; }
     bool InstallProxyRoute(int incoming, uint32_t target, int outgoing, uint32_t nextHop);
+    // [assignment7] 단일 NIC의 대리 응답 시연에도 연결된 subnet의 network/broadcast 및 자신의 IP 등록은 거부한다.
+    bool IsValidProxyTarget(uint32_t target);
     void RemoveProxyRoute(int incoming, uint32_t target);
     bool CanProxyReply(int incoming, uint32_t target);
     bool IsLocalAddress(uint32_t address);

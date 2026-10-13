@@ -173,18 +173,24 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
     bool changed = false, reply = false, conflict = false, proxyReply = false, defend = false, stopped = false;
     unsigned char local[6] = {};
     const ULONGLONG now = GetTickCount64();
-    bool registeredProxy = false;
+    bool registeredProxy = false, replyOnlyProxy = false;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         registeredProxy = std::any_of(m_proxies.begin(),m_proxies.end(),
             [targetIp](const ARP_PROXY_ENTRY& entry) { return entry.ip == targetIp; });
+        // [assignment7] 단일 NIC 시연 항목은 출력 경로 없이도 자신의 MAC으로 대리 응답한다.
+        // [assignment7] 일반 IP 패킷 중계는 이 등록표가 아니라 기존 CIPRouter의 경로 처리에서 수행한다.
+        replyOnlyProxy = std::any_of(m_proxies.begin(),m_proxies.end(),
+            [targetIp](const ARP_PROXY_ENTRY& entry) {
+                return entry.ip == targetIp && entry.outgoing == ARP_PROXY_REPLY_ONLY_INTERFACE;
+            });
     }
     // [assignment7] ARP lock 밖에서 경로를 확인한다. route lock -> ARP lookup과의 교착을 막는다.
     // [assignment7] 중계 PC 앱이 NIC 1의 IP로 NIC 2 쪽에 송신했을 때 돌아오는 응답을 위해
     // [assignment7] 다른 NIC에 속한 자신의 IP도 대리 해석한다. 충돌로 사용 중단된 주소에는 응답하지 않는다.
-    const bool proxyAvailable = m_router &&
+    const bool proxyAvailable = replyOnlyProxy || (m_router &&
         (registeredProxy || (targetIp != m_localIp && m_router->IsLocalAddress(targetIp))) &&
-        m_router->CanProxyReply(m_interfaceIndex,targetIp);
+        m_router->CanProxyReply(m_interfaceIndex,targetIp));
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (senderIp == m_localIp && targetIp == m_localIp && operation == ARP_OPERATION_REQUEST &&
@@ -228,6 +234,19 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
         }
     }
     if (conflict) {
+        // [assignment7] 강의자료의 중복 IP 확인에 사용할 수 있도록 실제 충돌 패킷의 Sender MAC을 표시한다.
+        // [assignment7] 이미 중단한 주소에 대한 반복 패킷은 같은 오류를 계속 추가하지 않는다.
+        if (defend || stopped) {
+            CString message;
+            // [assignment7] IP는 host-order 숫자에서 octet을 나누고, MAC은 수신 헤더의 6바이트를 그대로 표시한다.
+            message.Format(_T("IP 주소 충돌: %u.%u.%u.%u / 상대 MAC: %02X:%02X:%02X:%02X:%02X:%02X"),
+                static_cast<unsigned int>((m_localIp >> 24) & 255), static_cast<unsigned int>((m_localIp >> 16) & 255),
+                static_cast<unsigned int>((m_localIp >> 8) & 255), static_cast<unsigned int>(m_localIp & 255),
+                static_cast<unsigned int>(packet.senderMac[0]), static_cast<unsigned int>(packet.senderMac[1]),
+                static_cast<unsigned int>(packet.senderMac[2]), static_cast<unsigned int>(packet.senderMac[3]),
+                static_cast<unsigned int>(packet.senderMac[4]), static_cast<unsigned int>(packet.senderMac[5]));
+            Report(message);
+        }
         if (defend) {
             if (!SendAnnouncement(local)) { std::lock_guard<std::mutex> lock(m_mutex); m_addressState = ADDRESS_STATE::Conflict; stopped = true; }
             else Report(_T("IP 충돌 감지: GARP 1회로 주소를 방어했습니다. 10초 이내 재충돌 시 사용 중단합니다."));
@@ -325,16 +344,36 @@ void CARPLayer::ClearCache()
 }
 bool CARPLayer::AddProxy(uint32_t ip, const CString& device, int outgoing, uint32_t nextHop)
 {
-    if (!m_localIp || !IsUnicastIp(ip) || ip == m_localIp) return false;
+    if (!m_localIp || !IsUsable() || !IsUnicastIp(ip) || ip == m_localIp) return false;
+    // [assignment7] 단일 NIC 모드에도 중복 등록/표 크기 제한을 적용한다. 캐시와 Proxy 표는 별개다.
+    if (outgoing < ARP_PROXY_REPLY_ONLY_INTERFACE ||
+        (outgoing == ARP_PROXY_REPLY_ONLY_INTERFACE && nextHop)) return false;
+    if (m_router && !m_router->IsValidProxyTarget(ip)) return false;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_proxies.size() >= ARP_CACHE_MAX_ENTRIES ||
+            std::any_of(m_proxies.begin(),m_proxies.end(),
+                [ip](const ARP_PROXY_ENTRY& entry) { return entry.ip == ip; })) return false;
+    }
     // [assignment7] 실제 다른 NIC의 경로가 없는 PARP 등록은 거부해 트래픽 black hole을 만들지 않는다.
-    if (!m_router || outgoing < 0 || !m_router->InstallProxyRoute(m_interfaceIndex,ip,outgoing,nextHop)) return false;
+    // [assignment7] 위 조건은 출력 NIC를 지정한 실제 중계에 적용한다. -1 시연 항목은 IP 전달 경로를 생성하지 않는다.
+    // [assignment7] ARP 잠금 밖에서 Router를 호출하여 수신 처리의 Router->ARP 잠금 순서와 충돌하지 않는다.
+    if (outgoing != ARP_PROXY_REPLY_ONLY_INTERFACE &&
+        (!m_router || !m_router->InstallProxyRoute(m_interfaceIndex,ip,outgoing,nextHop))) return false;
     std::lock_guard<std::mutex> lock(m_mutex);
     ARP_PROXY_ENTRY entry; entry.ip = ip; entry.device = device; entry.outgoing = outgoing; entry.nextHop = nextHop;
     m_proxies.push_back(entry); NotifyChanged(); return true;
 }
 void CARPLayer::DeleteProxy(uint32_t ip)
 {
-    if (m_router) m_router->RemoveProxyRoute(m_interfaceIndex,ip);
+    // [assignment7] 단일 NIC 시연 항목은 표에서만 지운다. 실제 중계 항목은 기존 next-hop 경로도 지운다.
+    bool routed = false;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        routed = std::any_of(m_proxies.begin(),m_proxies.end(),
+            [ip](const ARP_PROXY_ENTRY& entry) { return entry.ip == ip && entry.outgoing >= 0; });
+    }
+    if (routed && m_router) m_router->RemoveProxyRoute(m_interfaceIndex,ip);
     std::lock_guard<std::mutex> lock(m_mutex);
     m_proxies.erase(std::remove_if(m_proxies.begin(), m_proxies.end(),
         [ip](const ARP_PROXY_ENTRY& entry) { return entry.ip == ip; }), m_proxies.end());

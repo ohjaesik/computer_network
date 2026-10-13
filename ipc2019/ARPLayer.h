@@ -20,7 +20,8 @@ struct ARP_CACHE_ENTRY {
 struct ARP_PROXY_ENTRY {
     uint32_t ip = 0;
     CString device;
-    int outgoing = 0;
+    // [assignment7] -1은 강의자료의 단일 NIC 대리 응답 시연이다. 0/1은 기존 실제 중계의 출력 NIC다.
+    int outgoing = ARP_PROXY_REPLY_ONLY_INTERFACE;
     uint32_t nextHop = 0;
 };
 
@@ -46,7 +47,8 @@ public:
     void DeleteEntry(uint32_t ip);
     void ClearCache();
     // [assignment7] PARP 항목과 출력 경로를 함께 등록/삭제한다. 일반 ARP 캐시 삭제와 구분한다.
-    bool AddProxy(uint32_t ip, const CString& device, int outgoing = -1, uint32_t nextHop = 0);
+    // [assignment7] 출력 NIC를 생략하면 Proxy 표만 등록한다. 출력 NIC를 지정하면 기존 경로 검사를 적용한다.
+    bool AddProxy(uint32_t ip, const CString& device, int outgoing = ARP_PROXY_REPLY_ONLY_INTERFACE, uint32_t nextHop = 0);
     void DeleteProxy(uint32_t ip);
     void GetSnapshot(std::vector<ARP_CACHE_ENTRY>& cache, std::vector<ARP_PROXY_ENTRY>& proxies);
     void Report(const CString& message) const;

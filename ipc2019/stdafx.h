@@ -96,6 +96,8 @@
 #define ARP_DEFEND_INTERVAL_MS      10000ULL
 #define ARP_MAX_CONFLICTS           10
 #define ARP_RATE_LIMIT_MS           60000ULL
+// [assignment7] 출력 NIC -1은 강의자료의 단일 NIC Proxy ARP 대리 응답 시연을 뜻한다.
+#define ARP_PROXY_REPLY_ONLY_INTERFACE (-1)
 // [assignment7] PARP로 유입된 원본 IPv4 패킷을 다음 홉 ARP 완료까지 유한 큐에 보관한다.
 #define ROUTER_PENDING_MAX_BYTES   (2 * 1024 * 1024)
 #define ROUTER_MAX_INTERFACES       2
