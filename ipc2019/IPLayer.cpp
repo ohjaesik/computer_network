@@ -37,7 +37,8 @@ bool CIPLayer::IsDestinationResolved()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     unsigned char mac[6];
-    if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp))
+    if (m_router && m_destinationIp != IPV4_BROADCAST &&
+        (m_router->IsStaticRouting() || m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp)))
         return m_router->IsDestinationResolved(m_interfaceIndex,m_destinationIp);
     return m_destinationIp == IPV4_BROADCAST ||
         (m_arp && m_destinationIp && m_arp->Lookup(m_destinationIp, mac));
@@ -45,7 +46,8 @@ bool CIPLayer::IsDestinationResolved()
 BOOL CIPLayer::RequestDestination()
 {
     uint32_t destination = GetDestination();
-    if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,destination))
+    if (m_router && destination != IPV4_BROADCAST &&
+        (m_router->IsStaticRouting() || m_router->UsesDifferentInterface(m_interfaceIndex,destination)))
         return m_router->RequestDestination(m_interfaceIndex,destination);
     return destination == IPV4_BROADCAST || (m_arp && m_arp->SendRequest(destination));
 }
@@ -87,7 +89,9 @@ BOOL CIPLayer::Send(unsigned char* payload, int length, unsigned short protocol)
         memcpy(packet.data(), &header, sizeof(header));
         memcpy(packet.data() + IP_HEADER_SIZE, payload, length);
 
-        if (m_router && m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp))
+        // [assignment7][static-router] 수동 모드에서는 같은 출력 NIC라도 Gateway가 있을 수 있으므로 표를 거친다.
+        if (m_router && m_destinationIp != IPV4_BROADCAST &&
+            (m_router->IsStaticRouting() || m_router->UsesDifferentInterface(m_interfaceIndex,m_destinationIp)))
             return m_router->SendOriginated(m_interfaceIndex,packet.data(),static_cast<int>(packet.size()),protocol == IP_PROTOCOL_CHAT);
 
         unsigned char mac[6];
@@ -180,6 +184,8 @@ BOOL CIPLayer::Receive(unsigned char* payload, int length, const unsigned char* 
     if (destination != m_sourceIp && destination != IPV4_BROADCAST &&
         !(m_router && m_router->IsLocalAddress(destination)))
         return m_router && source ? m_router->Forward(m_interfaceIndex,payload,totalLength,source) : FALSE;
+    // [assignment7][static-router] 강의 범위는 transit forwarding이다. 수동 라우터 모드의 자기 IP 대상 앱/ICMP는 처리하지 않는다.
+    if (m_router && m_router->IsStaticRouting()) return FALSE;
     // [assignment6] 로컬 앱은 IPv4 단편 재조립을 지원하지 않으므로 기존 안전 검사도 유지한다.
     if (!header.ttl || (ntohs(header.flagsOffset) & 0xbfff) != 0) return FALSE;
     if (header.protocol == IP_PROTOCOL_ICMP) {

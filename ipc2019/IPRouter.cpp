@@ -5,6 +5,102 @@
 
 using namespace NetworkPackets;
 
+void CIPRouter::SetStaticRouting(bool enabled)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_staticRouting == enabled) return;
+    // [assignment7][static-router] 모드는 UI에서 연결 전에 선택한다. 이전 모드의 ARP 대기 데이터도 취소한다.
+    m_pending.clear(); m_pendingBytes = 0; m_staticRouting = enabled;
+}
+bool CIPRouter::IsStaticRouting()
+{
+    std::lock_guard<std::mutex> lock(m_mutex); return m_staticRouting;
+}
+bool CIPRouter::RouteFitsInterface(const STATIC_ROUTE& route) const
+{
+    if (!ValidInterface(route.outgoing)) return false;
+    const auto& port = m_interfaces[route.outgoing];
+    if (route.flags & ROUTE_FLAG_GATEWAY) {
+        // [assignment7][static-router] 게이트웨이는 선택한 출력 NIC에서 직접 ARP 가능한 실제 호스트여야 한다.
+        if (!IsHostOnSubnet(route.gateway,port.ip,port.mask)) return false;
+        for (const auto& local : m_interfaces) if (route.gateway == local.ip) return false;
+        return true;
+    }
+    // [assignment7][static-router] U는 다음 홉=최종 목적지다. 직접 연결된 subnet 또는 그 안의 더 구체적인 경로만 허용한다.
+    return route.mask >= port.mask && (route.destination & port.mask) == (port.ip & port.mask) &&
+        (!(route.flags & ROUTE_FLAG_HOST) || (IsHostOnSubnet(route.destination,port.ip,port.mask) && route.destination != port.ip));
+}
+bool CIPRouter::AddStaticRoute(const STATIC_ROUTE& input, CString& error)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    error.Empty(); STATIC_ROUTE route = input;
+    const uint32_t inverse = ~route.mask;
+    // [assignment7][static-router] NIC mask(/1~ /30)와 달리 route mask는 기본 경로 /0과 호스트 경로 /32도 받는다.
+    if ((inverse & (inverse + 1)) != 0 || (route.destination & route.mask) != route.destination) {
+        error = _T("Netmask는 연속된 비트여야 하며 Destination의 host bit는 0이어야 합니다."); return false;
+    }
+    if (route.outgoing < 0 || route.outgoing >= ROUTER_MAX_INTERFACES || route.metric > ROUTE_MAX_METRIC ||
+        (route.flags & ~(ROUTE_FLAG_UP | ROUTE_FLAG_GATEWAY | ROUTE_FLAG_HOST))) {
+        error = _T("Interface(Port 0/1), Flag(U/G/H), Metric(0~65535)을 확인하세요."); return false;
+    }
+    if ((route.flags & ROUTE_FLAG_HOST) && route.mask != 0xffffffffu) {
+        error = _T("H(Host) 경로의 Netmask는 255.255.255.255이어야 합니다."); return false;
+    }
+    if (route.mask == 0xffffffffu) route.flags |= ROUTE_FLAG_HOST;
+    if ((route.destination || route.mask == 0xffffffffu) && !IsUnicastIp(route.destination)) {
+        error = _T("Destination은 unicast 호스트/네트워크 또는 기본 경로 0.0.0.0이어야 합니다."); return false;
+    }
+    if (route.flags & ROUTE_FLAG_GATEWAY) {
+        if (!IsUnicastIp(route.gateway)) { error = _T("G 경로에는 유효한 Gateway IP가 필요합니다."); return false; }
+    } else route.gateway = 0; // [assignment7][static-router] 강의 표에 NIC 자신의 IP가 적혀 있어도 G가 없으면 사용하지 않는다.
+    if (m_running && !RouteFitsInterface(route)) {
+        error = _T("직접 경로는 출력 NIC subnet 안에, Gateway는 출력 NIC subnet의 다른 호스트로 지정하세요."); return false;
+    }
+    for (const auto& old : m_staticRoutes) {
+        if (old.destination == route.destination && old.mask == route.mask && old.gateway == route.gateway &&
+            old.outgoing == route.outgoing && old.flags == route.flags) {
+            error = _T("동일한 경로가 이미 있습니다. 변경하려면 기존 행을 삭제한 뒤 추가하세요."); return false;
+        }
+    }
+    if (m_staticRoutes.size() >= ROUTE_TABLE_MAX_ENTRIES || !m_nextRouteId) {
+        error = _T("Routing Table의 최대 항목 수를 초과했습니다."); return false;
+    }
+    route.id = m_nextRouteId++; m_staticRoutes.push_back(route);
+    DiscardChangedPendingLocked(); return true;
+}
+void CIPRouter::DeleteStaticRoute(uint32_t id)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_staticRoutes.erase(std::remove_if(m_staticRoutes.begin(),m_staticRoutes.end(),
+        [id](const STATIC_ROUTE& route) { return route.id == id; }),m_staticRoutes.end());
+    DiscardChangedPendingLocked();
+}
+void CIPRouter::GetStaticRoutes(std::vector<STATIC_ROUTE>& routes)
+{
+    std::lock_guard<std::mutex> lock(m_mutex); routes = m_staticRoutes;
+}
+bool CIPRouter::ValidateStaticRoutes(CString& error)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    error.Empty();
+    for (const auto& route : m_staticRoutes) if (!RouteFitsInterface(route)) {
+        error.Format(_T("경로 ID %u: 현재 Interface IP/Mask와 직접 경로/Gateway가 맞지 않습니다."),route.id);
+        return false;
+    }
+    return true;
+}
+void CIPRouter::DiscardChangedPendingLocked()
+{
+    // [assignment7][static-router] 편집으로 next hop/출력 NIC가 바뀐 대기 패킷은 취소한다. 늦은 ARP Reply로 구 경로 송신을 막는다.
+    if (!m_staticRouting) return;
+    for (auto it = m_pending.begin(); it != m_pending.end();) {
+        int outgoing; uint32_t nextHop;
+        if (!FindRoute(ReadIp(it->original.data()+16),outgoing,nextHop) || outgoing != it->outgoing || nextHop != it->nextHop) {
+            ++m_stats.dropped; ErrorLocked(*it,3,0); m_pendingBytes -= it->packet.size(); it = m_pending.erase(it);
+        } else ++it;
+    }
+}
+
 void CIPRouter::BindInterface(int index, uint32_t ip, uint32_t mask, CARPLayer* arp, CEthernetLayer* ethernet)
 {
     if (index < 0 || index >= ROUTER_MAX_INTERFACES) return;
@@ -42,6 +138,20 @@ bool CIPRouter::IsDirectedBroadcast(uint32_t ip) const
 }
 bool CIPRouter::FindRoute(uint32_t destination, int& outgoing, uint32_t& nextHop) const
 {
+    if (m_staticRouting) {
+        // [assignment7][static-router] 사용자 표만 조회한다. /32 > subnet > /0 순으로 가장 긴 prefix를 선택한다.
+        // [assignment7][static-router] prefix가 같으면 낮은 Metric, 둘 다 같으면 먼저 입력한 행을 사용한다. U가 없으면 제외한다.
+        const STATIC_ROUTE* best = nullptr;
+        for (const auto& route : m_staticRoutes) {
+            if (!(route.flags & ROUTE_FLAG_UP) || !RouteFitsInterface(route) ||
+                (destination & route.mask) != route.destination) continue;
+            if (!best || route.mask > best->mask || (route.mask == best->mask && route.metric < best->metric)) best = &route;
+        }
+        if (!best) return false; // [assignment7][static-router] connected subnet/Proxy 등록으로 자동 보완하지 않는다.
+        outgoing = best->outgoing;
+        nextHop = (best->flags & ROUTE_FLAG_GATEWAY) ? best->gateway : destination;
+        return true;
+    }
     // [assignment7] /32 proxy 정적 경로가 connected subnet보다 구체적이므로 먼저 확인한다.
     for (const auto& route : m_routes) if (route.target == destination && ValidInterface(route.outgoing)) {
         outgoing = route.outgoing; nextHop = route.nextHop ? route.nextHop : destination; return true;
@@ -164,7 +274,8 @@ BOOL CIPRouter::Forward(int incoming, const unsigned char* packet, int length, c
     pending.original.assign(packet,packet+total); pending.incoming = incoming;
     memcpy(pending.previousMac,previousMac,6);
     if (packet[8] <= 1) { ++m_stats.dropped; ErrorLocked(pending,11,0); return FALSE; }
-    if (!FindRoute(destination,pending.outgoing,pending.nextHop) || pending.outgoing == incoming ||
+    // [assignment7][static-router] 수동 라우팅은 입력과 같은 인터페이스로도 전달할 수 있다. PARP의 기존 반대 NIC 조건은 유지한다.
+    if (!FindRoute(destination,pending.outgoing,pending.nextHop) || (pending.outgoing == incoming && !m_staticRouting) ||
         !m_interfaces[pending.outgoing].arp->IsUsable()) {
         ++m_stats.dropped; ErrorLocked(pending,3,0); return FALSE;
     }

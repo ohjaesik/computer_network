@@ -13,6 +13,19 @@ class CEthernetLayer;
 class CIPRouter {
 public:
     struct STATS { uint64_t forwarded = 0, dropped = 0; size_t waiting = 0; };
+    // [assignment7][static-router] UI에서 입력한 행이다. 주소는 host-order, Interface는 Port 0/1이다.
+    // [assignment7][static-router] 기존 PARP /32 등록표와 분리하여 수동 모드에서 숨은 자동 경로가 생기지 않게 한다.
+    struct STATIC_ROUTE {
+        uint32_t id = 0, destination = 0, mask = 0, gateway = 0;
+        int outgoing = 0;
+        unsigned int flags = ROUTE_FLAG_UP, metric = 1;
+    };
+    void SetStaticRouting(bool enabled);
+    bool IsStaticRouting();
+    bool AddStaticRoute(const STATIC_ROUTE& route, CString& error);
+    void DeleteStaticRoute(uint32_t id);
+    void GetStaticRoutes(std::vector<STATIC_ROUTE>& routes);
+    bool ValidateStaticRoutes(CString& error);
     void BindInterface(int index, uint32_t ip, uint32_t mask, CARPLayer* arp, CEthernetLayer* ethernet);
     void Reset(); // [assignment7] 양쪽 NI worker를 먼저 종료한 뒤 호출한다.
     void Suspend(); // [assignment7] NIC를 닫기 전에 교차 NIC 송신을 먼저 정지한다.
@@ -49,6 +62,10 @@ private:
     std::mutex m_mutex;
     ROUTER_PORT m_interfaces[ROUTER_MAX_INTERFACES];
     std::vector<ROUTE> m_routes;
+    // [assignment7][static-router] 연결 해제 시 사용자가 입력한 표는 보존한다. 다시 연결할 때 IP/mask와 재검증한다.
+    std::vector<STATIC_ROUTE> m_staticRoutes;
+    uint32_t m_nextRouteId = 1;
+    bool m_staticRouting = false;
     std::deque<PENDING> m_pending;
     size_t m_pendingBytes = 0;
     STATS m_stats;
@@ -59,6 +76,8 @@ private:
     bool m_running = false;
     bool ValidInterface(int index) const;
     bool FindRoute(uint32_t destination, int& outgoing, uint32_t& nextHop) const;
+    bool RouteFitsInterface(const STATIC_ROUTE& route) const;
+    void DiscardChangedPendingLocked();
     bool IsDirectedBroadcast(uint32_t ip) const;
     void FlushLocked(int outgoing, uint32_t nextHop, const unsigned char* mac, ULONGLONG now);
     void ErrorLocked(const PENDING& packet, unsigned char type, unsigned char code);

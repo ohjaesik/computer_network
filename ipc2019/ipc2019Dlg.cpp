@@ -178,6 +178,9 @@ BEGIN_MESSAGE_MAP(Cipc2019Dlg, CDialogEx)
     // [assignment6] 화면 전환과 NI 스레드의 ARP/IP 상태 알림을 기존 UI 스레드에서 처리한다.
     ON_BN_CLICKED(IDC_PAGE_CHAT, &Cipc2019Dlg::OnShowChatPage)
     ON_BN_CLICKED(IDC_PAGE_ARP, &Cipc2019Dlg::OnShowArpPage)
+    // [assignment7][static-router] 화면 표시와 네트워크 모드 선택은 UI 스레드에서만 처리한다.
+    ON_BN_CLICKED(IDC_PAGE_ROUTER, &Cipc2019Dlg::OnShowRouterPage)
+    ON_MESSAGE(WM_STATIC_ROUTER_MODE, &Cipc2019Dlg::OnStaticRouterMode)
     ON_MESSAGE(WM_ARP_CHANGED, &Cipc2019Dlg::OnArpChanged)
     ON_MESSAGE(WM_NETWORK_EVENT, &Cipc2019Dlg::OnNetworkEvent)
     ON_CBN_SELCHANGE(IDC_COMBO_ADAPTER2, &Cipc2019Dlg::OnSecondAdapterChanged)

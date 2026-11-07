@@ -14,6 +14,7 @@
 #include "ARPLayer.h"
 #include "ARPDlg.h"
 #include "IPRouter.h"
+#include "RouterDlg.h"
 // Cipc2019Dlg 대화 상자
 // [assignment4] MFC Dialog와 CBaseLayer를 함께 상속하여 화면 객체도 프로토콜 스택의 상위 계층으로 연결한다.
 class Cipc2019Dlg : public CDialogEx, public CBaseLayer
@@ -150,6 +151,13 @@ private:
     CComboBox m_AdapterCombo2;
     bool m_secondConnected = false;
     CARPDlg m_arpDialog;
+    // [assignment7][static-router] 기존 화면과 계층은 보존하고, 수동 라우팅 전용 페이지와 모드만 추가한다.
+    CRouterDlg m_routerDialog;
+    bool m_staticRouterMode = false;
+    int m_ipPage = 0; // 0: Chat/File, 1: ARP, 2: Static Router
+    void ShowIpPage(int page);
+    afx_msg void OnShowRouterPage();
+    afx_msg LRESULT OnStaticRouterMode(WPARAM enabled, LPARAM);
     std::vector<HWND> m_chatControls;
     CString m_sourceIp, m_pendingFile;
     ULONGLONG m_fileResolveStarted = 0;

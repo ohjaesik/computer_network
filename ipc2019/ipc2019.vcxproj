@@ -91,7 +91,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(NpcapLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>wpcap.lib;Packet.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wpcap.lib;Packet.lib;Ws2_32.lib;Iphlpapi.lib;Ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -205,6 +205,7 @@
   <ItemGroup>
     <ClInclude Include="NetworkPackets.h" />
     <ClInclude Include="DialogScrollLayout.h" />
+    <ClInclude Include="RouterDlg.h" />
     <ClInclude Include="IPRouter.h" />
     <ClInclude Include="NetworkAddress.h" />
     <ClInclude Include="IPLayer.h" />
@@ -228,6 +229,7 @@
   <ItemGroup>
     <ClCompile Include="ipc2019DlgNetwork.cpp" />
     <ClCompile Include="ipc2019DlgScroll.cpp" />
+    <ClCompile Include="RouterDlg.cpp" />
     <ClCompile Include="IPRouter.cpp" />
     <ClCompile Include="IPLayer.cpp" />
     <ClCompile Include="ARPLayer.cpp" />

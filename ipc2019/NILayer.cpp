@@ -3,6 +3,10 @@
 // [assignment4] 선택한 어댑터의 현재 MAC 주소를 Packet32 OID 요청으로 조회하기 위한 API를 포함한다.
 #include <Packet32.h>
 #include <ntddndis.h>
+// [assignment7][static-router] IPv4 바인딩을 꺼도 GUID로 물리 NIC 유형을 확인할 수 있는 IP Helper API다.
+#include <iphlpapi.h>
+#include <netioapi.h>
+#include <objbase.h>
 
 // [assignment4] 캡처 핸들과 수신 스레드를 미생성 상태로 두고 종료 플래그와 MAC 저장 공간을 초기화한다.
 CNILayer::CNILayer(const char* name)
@@ -45,6 +49,24 @@ BOOL CNILayer::LoadAdapters()
 CString CNILayer::GetAdapterName(int index) const
 {
 	return index >= 0 && index < GetAdapterCount() ? m_adapters[index].description : CString();
+}
+
+// [assignment7][static-router] 과제의 유선 물리 NIC 2개 조건을 검사한다. 설명 문자열의 Wi-Fi/Ethernet 단어에 의존하지 않는다.
+BOOL CNILayer::CheckWiredAdapter(int index)
+{
+	m_error.Empty();
+	CStringA device = GetAdapterId(index);
+	const int brace = device.Find('{');
+	GUID guid = {}; MIB_IF_ROW2 row = {};
+	CString guidText = brace >= 0 ? CString(CA2T(static_cast<LPCSTR>(device) + brace)) : CString();
+	if (brace < 0 || FAILED(CLSIDFromString(guidText, &guid)) ||
+		ConvertInterfaceGuidToLuid(&guid, &row.InterfaceLuid) != NO_ERROR || GetIfEntry2(&row) != NO_ERROR) {
+		m_error = _T("유선 NIC 정보를 확인하지 못했습니다. 실제 Ethernet 어댑터와 드라이버를 확인하세요."); return FALSE;
+	}
+	if (row.Type != IF_TYPE_ETHERNET_CSMACD || !row.InterfaceAndOperStatusFlags.HardwareInterface) {
+		m_error = _T("Static Router는 서로 다른 유선 물리 NIC 2개가 필요합니다. Wi-Fi/Loopback/가상 NIC는 사용할 수 없습니다."); return FALSE;
+	}
+	return TRUE;
 }
 
 // [assignment4] 선택한 장치를 pcap_open_live로 열고 Ethernet 링크 형식인지 확인한다.
