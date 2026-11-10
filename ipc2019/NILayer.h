@@ -16,6 +16,8 @@ public:
 	// [assignment7] 설명이 같은 NIC도 있을 수 있으므로 두 인터페이스 중복 검사는 pcap 장치 ID로 한다.
 	CStringA GetAdapterId(int index) const { return index >= 0 && index < GetAdapterCount() ? m_adapters[index].name : CStringA(); }
 	BOOL OpenAdapter(int index);
+	// [assignment7][static-router] Npcap의 Ethernet 형식만으로 Wi-Fi를 판별할 수 없어 Windows의 실제 인터페이스 종류를 확인한다.
+	BOOL CheckWiredAdapter(int index);
 	// [assignment4] 패킷 수신 전용 스레드를 시작하고 장치 종료 시 해당 스레드가 끝날 때까지 기다린다.
 	BOOL StartReceive();
 	void CloseAdapter();

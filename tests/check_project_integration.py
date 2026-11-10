@@ -19,7 +19,7 @@ for kind, suffix in [('ClCompile', '.cpp'), ('ClInclude', '.h')]:
     assert set(registered) == set(mapped), f'Project/filters mismatch: {kind}'
     for name in registered:
         assert name.replace('\\', '/').casefold() in available, f'Missing source: {name}'
-    for name in ('IPRouter', 'IPLayer', 'ARPLayer', 'ARPDlg', 'NetworkPackets'):
+    for name in ('IPRouter', 'IPLayer', 'ARPLayer', 'ARPDlg', 'RouterDlg', 'NetworkPackets'):
         if kind == 'ClCompile' and name == 'NetworkPackets':
             continue
         assert name + suffix in registered, f'Not registered: {name + suffix}'
@@ -40,7 +40,7 @@ for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX'):
 # [assignment6] group box 내부까지 부모 배경을 지워야 이동 전 입력칸/글자의 잔상이 남지 않는다.
 assert 'WS_CLIPCHILDREN' not in main_style, 'Group-box background must participate in scroll repaint'
 page_controls = {}
-for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG'):
+for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'):
     width, height, body = dialogs[name]
     controls = re.findall(r'^\s*(\w+)\s+.*?\b(IDC_\w+),\s*(?:"[^"]*",[^,\n]+,)?\s*(\d+),(\d+),(\d+),(\d+)', body, re.M)
     values = [control for _, control, *_ in controls if control != 'IDC_STATIC']
@@ -54,10 +54,24 @@ for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG'):
         # COMBOBOX height is the drop-down list, not its collapsed rectangle.
         assert x + w <= width and y + (18 if kind == 'COMBOBOX' else h) <= height, f'Out of dialog: {control}'
 
-for filename, dialog in [('ipc2019DlgNetwork.cpp', 'IDD_IPC2019_DIALOG'), ('ARPDlg.cpp', 'IDD_ARP_DIALOG')]:
+bindings = [('ipc2019DlgNetwork.cpp', {'IDD_IPC2019_DIALOG'}), ('ARPDlg.cpp', {'IDD_ARP_DIALOG'}),
+            ('RouterDlg.cpp', {'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'})]
+for filename, targets in bindings:
     text = (source / filename).read_text(encoding='utf-8-sig')
+    controls = set().union(*(page_controls[dialog] for dialog in targets))
     for name in set(re.findall(r'\bIDC_\w+', text)):
-        assert name in page_controls[dialog], f'Missing UI control: {filename} / {name}'
+        assert name in controls, f'Missing UI control: {filename} / {name}'
+
+# [assignment7][static-router] 수동 경로 입력창과 실제 경로 객체를 연결하고 두 NIC의 캐시를 표시한다.
+router_ui = (source / 'RouterDlg.cpp').read_text(encoding='utf-8-sig')
+network_ui = (source / 'ipc2019DlgNetwork.cpp').read_text(encoding='utf-8-sig')
+for call in ('AddStaticRoute(', 'DeleteStaticRoute(', 'GetStaticRoutes(', 'GetSnapshot('):
+    assert call in router_ui, f'Routing UI not bound: {call}'
+for call in ('ValidateStaticRoutes(', 'CheckWiredAdapter(', 'SetStaticRouting('):
+    assert call in network_ui, f'Router start missing validation: {call}'
+assert network_ui.index('m_routerDialog.Create(') < network_ui.index('ShowIpPage(false)')
+for library in ('Iphlpapi.lib', 'Ole32.lib'):
+    assert library in (source / 'ipc2019.vcxproj').read_text(encoding='utf-8-sig')
 
 # [assignment6] child Dialog 생성 후 가상 배치를 기록해야 ARP 화면도 외부 스크롤에 포함된다.
 main_cpp = (source / 'ipc2019Dlg.cpp').read_text(encoding='utf-8-sig')
@@ -85,4 +99,4 @@ for path in source.glob('*'):
     new = Counter(line.strip() for line in path.read_text(encoding=encoding).splitlines() if '[assignment4]' in line)
     assert not old - new, f'Original assignment4 comments changed: {path.name}'
 
-print('PASS: project/filters, source registration, resource/UI bindings/bounds, scroll initialization/messages and original assignment4 comments')
+print('PASS: project/filters, source registration, resource/UI bindings/bounds, static-router page/entry/start wiring, scroll initialization/messages and original assignment4 comments')

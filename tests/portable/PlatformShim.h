@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdarg>
+#include <cctype>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -64,6 +65,16 @@ public:
     CString Mid(int index) const { return value.substr(index).c_str(); }
     CString Left(int length) const { return value.substr(0,length).c_str(); }
     CString Right(int length) const { return value.substr(value.size()-(std::min)(value.size(),size_t(length))).c_str(); }
+    // [assignment7][static-router] 실제 NetworkAddress/새 UI 소스의 구문 검사에도 같은 CString 대체물을 사용한다.
+    void Trim() {
+        const auto first = value.find_first_not_of(" \t\r\n");
+        if (first == value.npos) { value.clear(); return; }
+        value = value.substr(first,value.find_last_not_of(" \t\r\n")-first+1);
+    }
+    void Replace(char from,char to) { std::replace(value.begin(),value.end(),from,to); }
+    void MakeUpper() { for (char& ch : value) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); }
+    int Find(char ch) const { const auto found = value.find(ch); return found == value.npos ? -1 : int(found); }
+    CString& operator+=(const char* text) { value += text; return *this; }
     int FindOneOf(const char* chars) const { const auto p=value.find_first_of(chars); return p==value.npos ? -1 : int(p); }
     friend CString operator+(const CString& left,const CString& right) { return (left.value+right.value).c_str(); }
     friend bool operator==(const CString& left,const char* right) { return left.value==right; }

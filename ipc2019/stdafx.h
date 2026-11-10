@@ -103,6 +103,13 @@
 #define ROUTER_MAX_INTERFACES       2
 #define IP_PROTOCOL_ICMP           1
 #define ICMP_ERROR_RATE_PER_SECOND 10
+// [assignment7][static-router] 수동 Routing Table의 flag 비트와 입력/메모리 제한이다. NIC subnet 상수와 분리한다.
+#define ROUTE_FLAG_UP               0x01u
+#define ROUTE_FLAG_GATEWAY          0x02u
+#define ROUTE_FLAG_HOST             0x04u
+#define ROUTE_MAX_METRIC            65535u
+#define ROUTE_TABLE_MAX_ENTRIES     256
+#define WM_STATIC_ROUTER_MODE       (WM_APP + 105)
 #define WM_ARP_CHANGED              (WM_APP + 103)
 #define WM_NETWORK_EVENT            (WM_APP + 104)
 #define ETHERNET_ADDRESS_SIZE       6

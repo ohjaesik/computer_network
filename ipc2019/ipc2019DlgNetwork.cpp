@@ -19,6 +19,10 @@ void Cipc2019Dlg::InitIpUi()
         AfxMessageBox(_T("ARP 화면 생성 실패")); GetDlgItem(IDC_PAGE_ARP)->EnableWindow(FALSE); return;
     }
     m_arpDialog.MoveWindow(page);
+    // [assignment7][static-router] 같은 본문 영역에 자식창을 겹쳐 만들고 페이지 전환 때 하나만 표시한다.
+    m_routerDialog.Attach(&m_router,m_ARP,m_ARP2);
+    if (m_routerDialog.Create(IDD_ROUTER_DIALOG,this)) m_routerDialog.MoveWindow(page);
+    else { AfxMessageBox(_T("Static Router 화면 생성 실패")); GetDlgItem(IDC_PAGE_ROUTER)->EnableWindow(FALSE); }
     m_ARP->SetNotifyWindow(m_hWnd); m_IP->SetNotifyWindow(m_hWnd);
     m_ARP2->SetNotifyWindow(m_hWnd); m_IP2->SetNotifyWindow(m_hWnd); m_router.SetNotifyWindow(m_hWnd);
     ((CEdit*)GetDlgItem(IDC_EDIT_SOURCE_IP))->SetLimitText(15);
@@ -35,25 +39,47 @@ void Cipc2019Dlg::InitIpUi()
 }
 void Cipc2019Dlg::ShowIpPage(bool arp)
 {
-    for (HWND window : m_chatControls) ::ShowWindow(window, arp ? SW_HIDE : SW_SHOW);
-    if (m_arpDialog.GetSafeHwnd()) m_arpDialog.ShowWindow(arp ? SW_SHOW : SW_HIDE);
-    GetDlgItem(IDC_PAGE_CHAT)->EnableWindow(arp);
-    GetDlgItem(IDC_PAGE_ARP)->EnableWindow(!arp && m_arpDialog.GetSafeHwnd());
-    if (arp) m_arpDialog.RefreshTables();
+    ShowIpPage(arp ? 1 : 0);
+}
+void Cipc2019Dlg::ShowIpPage(int page)
+{
+    m_ipPage = page;
+    for (HWND window : m_chatControls) ::ShowWindow(window,page == 0 ? SW_SHOW : SW_HIDE);
+    if (m_arpDialog.GetSafeHwnd()) m_arpDialog.ShowWindow(page == 1 ? SW_SHOW : SW_HIDE);
+    if (m_routerDialog.GetSafeHwnd()) m_routerDialog.ShowWindow(page == 2 ? SW_SHOW : SW_HIDE);
+    GetDlgItem(IDC_PAGE_CHAT)->EnableWindow(page != 0);
+    GetDlgItem(IDC_PAGE_ARP)->EnableWindow(page != 1 && m_arpDialog.GetSafeHwnd());
+    GetDlgItem(IDC_PAGE_ROUTER)->EnableWindow(page != 2 && m_routerDialog.GetSafeHwnd());
+    if (page == 1) m_arpDialog.RefreshTables();
+    if (page == 2) m_routerDialog.RefreshTables();
 }
 void Cipc2019Dlg::OnShowChatPage() { ShowIpPage(false); }
 void Cipc2019Dlg::OnShowArpPage() { ShowIpPage(true); }
+void Cipc2019Dlg::OnShowRouterPage() { ShowIpPage(2); }
+LRESULT Cipc2019Dlg::OnStaticRouterMode(WPARAM enabled, LPARAM)
+{
+    if (m_bSendReady) return 0;
+    m_staticRouterMode = enabled != 0;
+    m_router.SetStaticRouting(m_staticRouterMode);
+    // [assignment7][static-router] 수동 모드는 두 NIC가 필수다. 기존 단일/두 NIC PARP 모드는 체크 해제하면 다시 사용한다.
+    if (m_staticRouterMode) CheckDlgButton(IDC_ENABLE_ROUTING,BST_CHECKED);
+    RefreshIpControls(); OnSecondAdapterChanged();
+    m_routerDialog.SetStatus(m_staticRouterMode ?
+        _T("수동 모드: 아래 공통 설정에서 유선 NIC 2개/IP/Mask를 입력하고 Add로 Routing Table을 직접 채우세요.") :
+        _T("기존 ARP/GARP/PARP 모드입니다. 수동 Routing Table은 보존하며 이 모드에서는 사용하지 않습니다."));
+    return 0;
+}
 
 void Cipc2019Dlg::RefreshIpControls()
 {
     const BOOL busy = (m_FileApp && m_FileApp->IsSending()) || !m_pendingFile.IsEmpty();
-    const BOOL usable = m_bSendReady && m_ARP && m_ARP->IsUsable();
+    const BOOL usable = m_bSendReady && !m_staticRouterMode && m_ARP && m_ARP->IsUsable();
     const BOOL second = ((CButton*)GetDlgItem(IDC_ENABLE_ROUTING))->GetCheck();
     const BOOL broadcast = ((CButton*)GetDlgItem(IDC_CHECK_TOALL))->GetCheck();
     m_AdapterCombo.EnableWindow(!m_bSendReady);
     GetDlgItem(IDC_EDIT_SOURCE_IP)->EnableWindow(!m_bSendReady);
     GetDlgItem(IDC_EDIT_SUBNET_MASK)->EnableWindow(!m_bSendReady);
-    GetDlgItem(IDC_ENABLE_ROUTING)->EnableWindow(!m_bSendReady);
+    GetDlgItem(IDC_ENABLE_ROUTING)->EnableWindow(!m_bSendReady && !m_staticRouterMode);
     m_AdapterCombo2.EnableWindow(!m_bSendReady && second);
     GetDlgItem(IDC_EDIT_SOURCE_IP2)->EnableWindow(!m_bSendReady && second);
     GetDlgItem(IDC_EDIT_SUBNET_MASK2)->EnableWindow(!m_bSendReady && second);
@@ -62,7 +88,8 @@ void Cipc2019Dlg::RefreshIpControls()
     GetDlgItem(IDC_BUTTON_SEND)->EnableWindow(usable);
     GetDlgItem(IDC_EDIT_MSG)->EnableWindow(usable);
     GetDlgItem(IDC_BUTTON_FILE_SEND)->EnableWindow(usable && !busy);
-    m_arpDialog.SetGarpAllowed(!busy);
+    m_arpDialog.SetGarpAllowed(!busy && !m_staticRouterMode);
+    m_routerDialog.SetConnection(m_bSendReady != FALSE,m_staticRouterMode);
     SetDlgItemText(IDC_BUTTON_ADDR, m_bSendReady ? _T("연결 해제") : _T("연결(&O)"));
 }
 void Cipc2019Dlg::OnRoutingModeChanged() { RefreshIpControls(); if (!m_bSendReady) OnSecondAdapterChanged(); }
@@ -112,9 +139,14 @@ void Cipc2019Dlg::SetIpNetworkAddress()
         AfxMessageBox(_T("NIC 1 mask(/1~ /30)와 host IP를 확인하세요. network/broadcast IP는 사용할 수 없습니다.")); return;
     }
     const bool second = ((CButton*)GetDlgItem(IDC_ENABLE_ROUTING))->GetCheck() != 0;
+    if (m_staticRouterMode) {
+        if (!second) { AfxMessageBox(_T("Static Router는 유선 NIC 2개가 필요합니다.")); return; }
+        if (!m_NI->CheckWiredAdapter(m_AdapterCombo.GetCurSel())) { AfxMessageBox(m_NI->GetError()); return; }
+        if (!m_NI2->CheckWiredAdapter(m_AdapterCombo2.GetCurSel())) { AfxMessageBox(m_NI2->GetError()); return; }
+    }
     if (second) {
         if (m_NI->GetAdapterId(m_AdapterCombo.GetCurSel()) == m_NI2->GetAdapterId(m_AdapterCombo2.GetCurSel())) {
-            AfxMessageBox(_T("PARP 중계는 서로 다른 물리 NIC를 선택해야 합니다.")); return;
+            AfxMessageBox(_T("두 NIC 중계는 서로 다른 물리 NIC를 선택해야 합니다.")); return;
         }
         GetDlgItemText(IDC_EDIT_SOURCE_IP2,text);
         if (!NetworkAddress::ParseIp(text,secondIp)) { AfxMessageBox(_T("NIC 2 IP를 확인하세요.")); return; }
@@ -129,6 +161,7 @@ void Cipc2019Dlg::SetIpNetworkAddress()
     m_Ethernet->SetSourceAddress(mac);
     m_IP->Configure(localIp, m_ARP);
     m_ARP->Configure(localIp, mac, m_IP);
+    m_router.SetStaticRouting(m_staticRouterMode);
     m_router.BindInterface(0,localIp,mask,m_ARP,m_Ethernet); m_ARP->SetRouter(&m_router,0); m_IP->SetRouter(&m_router,0);
     unsigned char secondMac[6] = {};
     if (second) {
@@ -139,6 +172,12 @@ void Cipc2019Dlg::SetIpNetworkAddress()
         m_IP2->Configure(secondIp,m_ARP2); m_ARP2->Configure(secondIp,secondMac,m_IP2);
         m_router.BindInterface(1,secondIp,secondMask,m_ARP2,m_Ethernet2);
         m_ARP2->SetRouter(&m_router,1); m_IP2->SetRouter(&m_router,1);
+    }
+    // [assignment7][static-router] 연결 전에 넣은 표를 실제 선택한 IP/mask와 대조한다. 연결 해제 후 바뀐 NIC 설정도 재검증한다.
+    CString routeError;
+    if (m_staticRouterMode && !m_router.ValidateStaticRoutes(routeError)) {
+        AfxMessageBox(routeError); m_router.Suspend(); m_NI->CloseAdapter(); m_NI2->CloseAdapter();
+        m_router.Reset(); m_IP->Reset(); m_ARP->Reset(); m_IP2->Reset(); m_ARP2->Reset(); return;
     }
     // [assignment7] 캐시/주소/중계 객체를 준비한 뒤 Probe를 시작한다. 검사 완료 전 앱은 활성화하지 않는다.
     const bool checksStarted = m_ARP->BeginAddressCheck(mac) && (!second || m_ARP2->BeginAddressCheck(secondMac));
@@ -159,7 +198,8 @@ void Cipc2019Dlg::SetIpNetworkAddress()
 
 bool Cipc2019Dlg::PrepareIpDestination()
 {
-    if (!m_IP || !m_bSendReady) return false;
+    // [assignment7][static-router] 수동 라우터는 외부 호스트의 패킷을 중계한다. Enter 등으로 앱 송신 핸들러를 호출해도 막는다.
+    if (m_staticRouterMode || !m_IP || !m_bSendReady) return false;
     uint32_t destination;
     if (((CButton*)GetDlgItem(IDC_CHECK_TOALL))->GetCheck()) destination = IPV4_BROADCAST;
     else {
@@ -213,6 +253,7 @@ void Cipc2019Dlg::PollIpNetwork()
     unsigned char mac[6]; m_ARP->GetEffectiveMac(mac); m_sourceMac = FormatMac(mac); SetDlgItemText(IDC_EDIT_SRC,m_sourceMac);
     if (m_secondConnected) { m_ARP2->GetEffectiveMac(mac); SetDlgItemText(IDC_EDIT_SOURCE_MAC2,FormatMac(mac)); }
     m_arpDialog.RefreshTables();
+    if (m_ipPage == 2) m_routerDialog.RefreshTables();
     const CIPRouter::STATS stats = m_router.GetStats();
     CString routerStatus; routerStatus.Format(_T("중계 송신 %llu / 대기 %llu / 폐기 %llu"),
         static_cast<unsigned long long>(stats.forwarded),static_cast<unsigned long long>(stats.waiting),
@@ -231,14 +272,16 @@ void Cipc2019Dlg::PollIpNetwork()
 }
 LRESULT Cipc2019Dlg::OnArpChanged(WPARAM, LPARAM)
 {
-    m_arpDialog.RefreshTables(); return 0;
+    m_arpDialog.RefreshTables();
+    if (m_ipPage == 2) m_routerDialog.RefreshTables();
+    return 0;
 }
 LRESULT Cipc2019Dlg::OnNetworkEvent(WPARAM, LPARAM lParam)
 {
     CString* text = reinterpret_cast<CString*>(lParam);
     if (text) {
         SetDlgItemText(IDC_STATIC_NETWORK_STATUS, *text);
-        m_arpDialog.SetStatus(*text); AppendChatMessage(*text); delete text;
+        m_arpDialog.SetStatus(*text); m_routerDialog.SetStatus(*text); AppendChatMessage(*text); delete text;
     }
     return 0;
 }

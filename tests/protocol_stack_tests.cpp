@@ -92,7 +92,10 @@ void FixIpChecksum(std::vector<unsigned char>& frame) {
     frame[24] = static_cast<unsigned char>(checksum >> 8); frame[25] = static_cast<unsigned char>(checksum);
 }
 
+#include "static_router_cases.h"
+
 int main() {
+    TestStaticRouting();
     static_assert(CHAT_APP_DATA_SIZE == 1476 && FILE_APP_DATA_SIZE == 1468, "IP MTU budgets");
     {
         Host a(1), b(2); assert(a.ip.SetDestination(b.address));
@@ -359,5 +362,5 @@ int main() {
         assert(b.ui.messages.size()==1 && b.ui.messages[0]==maximum);
         assert(!a.chat.Send(maximum.data(),CHAT_MAX_MESSAGE_SIZE+1));
     }
-    std::cout << "PASS: real layer linkage, single-NIC PARP reply/cache/delete, two-LAN PARP bidirectional forwarding, byte-exact routed files (9 sizes), next-hop ARP/timeout, TTL/ICMP/checksum, GARP Probe/Announcement/MAC switch/conflict defense, cache expiry, chat demux/MTU and broadcast\n";
+    std::cout << "PASS: static router manual U/UG/H/default/LPM/metric routes, bidirectional ICMP forwarding, gateway ARP/deletion/reconnect validation, real layer linkage, single-NIC PARP reply/cache/delete, two-LAN PARP bidirectional forwarding, byte-exact routed files (9 sizes), next-hop ARP/timeout, TTL/ICMP/checksum, GARP Probe/Announcement/MAC switch/conflict defense, cache expiry, chat demux/MTU and broadcast\n";
 }

@@ -162,3 +162,17 @@ Npcap SDK 경로는 `NPCAP_SDK_DIR`을 우선 사용하고, 없으면 `C:\NpcapS
 - 스크롤 시 이전 화면 픽셀을 복사하지 않고, 부모 배경과 자식창/테두리를 즉시 다시 그린다. main의 group box 내부 배경도 지울 수 있도록 `WS_CLIPCHILDREN`을 사용하지 않는다. 이 수정은 화면 잔상에 대한 것으로 프로토콜 동작은 바꾸지 않는다.
 
 `python tests/run_dialog_scroll_tests.py`로 216개의 창 크기/100~250% 가상 배율 조건, 끝까지 접근 가능한 범위, 확대 후 offset 복원, 32비트 thumb, 포커스 표시를 검사한다. 실제 scroll cpp의 선언/구문도 최소 Win32/MFC 선언 대체물에서 검사하여 LONG/int 및 Windows min/max 매크로 충돌을 확인한다. 이 검사는 실제 Windows/MFC 빌드, 배율별 렌더링이나 마우스/키보드 동작을 실행한 검증이 아니므로 Visual Studio에서 다시 빌드하고 작은 화면에서 최종 확인해야 한다.
+
+
+## Assignment 07: Static Router (Practice 10 자료 기준)
+
+`feature/assignment7-static-router`는 기존 ARP/GARP/PARP/채팅/파일을 보존하고 **Static Router 페이지**와 **수동 Routing Table**을 추가한다. 자세한 설계, 요구사항 대응, NIC/IP 설정, Router I/II의 U·UG 예시, ping/양쪽 패킷 캡처 절차는 [설계와 시연 안내](docs/assignment7-static-router.md)를 참고한다. 새 코드 주석은 기존 GARP/PARP와 구분해 `[assignment7][static-router]`로 표시한다.
+
+- `Static Router 모드`를 체크한 뒤 서로 다른 **유선 물리 NIC 2개**와 각 IP/Mask를 UI에서 지정한다. Port 0=NIC 1, Port 1=NIC 2다.
+- Routing entry는 Add 입력창에서 직접 입력한다. 수동 모드는 connected subnet/Proxy에서 경로를 자동 생성하지 않는다. 빈 표로는 전달하지 못한다.
+- U/UG/H, 기본 경로 `/0`, 호스트 경로 `/32`, longest-prefix 우선 및 같은 prefix의 낮은 Metric을 처리한다. U의 ARP 대상은 목적지 IP, UG는 Gateway IP다.
+- 기존 IPv4 forwarding/TTL/Checksum/ARP 대기 큐를 사용해 **외부 호스트 사이의 ICMP Echo Request/Reply**를 전달한다. 자기 라우터 IP에 대한 ping 응답이나 수동 모드의 로컬 채팅/파일 기능은 시험 대상에 포함하지 않는다.
+- 수동 표는 연결 해제 동안 유지하고 다시 연결할 때 IP/Mask와 재검증한다. 프로그램 종료 시 디스크에 저장하지 않는다.
+- IP Helper로 물리 Ethernet 여부를 검사한다. `Iphlpapi.lib`/`Ole32.lib`는 프로젝트 공통 링크 설정에 추가했다. SDK 경로와 기존 상수/주석은 보존했다.
+
+자동 검사는 실제 프로토콜 소스의 양방향 ICMP, U/UG/Host/default/Metric, gateway ARP와 경로 삭제 검사를 포함한다. Windows/MFC 빌드와 두 유선 NIC의 실제 ping/화면 캡처는 실습 장치에서 최종 확인해야 한다.

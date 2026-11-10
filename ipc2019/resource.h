@@ -64,13 +64,34 @@
 #define IDC_PROXY_NEXT_HOP               1123
 #define IDC_ROUTER_STATUS                1124
 
+// [assignment7][static-router] 기존 ID를 보존하고 수동 라우팅 페이지/입력창의 ID만 추가한다.
+#define IDD_ROUTER_DIALOG              132
+#define IDD_ROUTE_ENTRY_DIALOG         133
+#define IDC_PAGE_ROUTER                1125
+#define IDC_STATIC_ROUTER_MODE         1126
+#define IDC_ROUTE_TABLE                1127
+#define IDC_ROUTE_ARP_CACHE            1128
+#define IDC_ROUTE_ADD                  1129
+#define IDC_ROUTE_DELETE               1130
+#define IDC_ROUTE_CACHE_DELETE         1131
+#define IDC_ROUTE_STATUS               1132
+#define IDC_ROUTE_COUNTERS             1133
+#define IDC_ROUTE_DESTINATION          1134
+#define IDC_ROUTE_MASK                 1135
+#define IDC_ROUTE_GATEWAY              1136
+#define IDC_ROUTE_UP                   1137
+#define IDC_ROUTE_G                    1138
+#define IDC_ROUTE_H                    1139
+#define IDC_ROUTE_INTERFACE            1140
+#define IDC_ROUTE_METRIC               1141
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        132
+#define _APS_NEXT_RESOURCE_VALUE        134
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1125
+#define _APS_NEXT_CONTROL_VALUE         1142
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
