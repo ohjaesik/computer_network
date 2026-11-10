@@ -109,6 +109,9 @@
 #define ROUTE_FLAG_HOST             0x04u
 #define ROUTE_MAX_METRIC            65535u
 #define ROUTE_TABLE_MAX_ENTRIES     256
+// [assignment7][static-router] 새 메인 창은 ARP 수명/주소 검사/패킷 대기와 표 갱신을 같은 UI 타이머에서 처리한다.
+#define ROUTER_UI_TIMER_ID          0xA710
+#define ROUTER_UI_REFRESH_MS        250
 #define WM_STATIC_ROUTER_MODE       (WM_APP + 105)
 #define WM_ARP_CHANGED              (WM_APP + 103)
 #define WM_NETWORK_EVENT            (WM_APP + 104)

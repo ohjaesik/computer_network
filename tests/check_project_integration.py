@@ -19,7 +19,7 @@ for kind, suffix in [('ClCompile', '.cpp'), ('ClInclude', '.h')]:
     assert set(registered) == set(mapped), f'Project/filters mismatch: {kind}'
     for name in registered:
         assert name.replace('\\', '/').casefold() in available, f'Missing source: {name}'
-    for name in ('IPRouter', 'IPLayer', 'ARPLayer', 'ARPDlg', 'RouterDlg', 'NetworkPackets'):
+    for name in ('IPRouter', 'IPLayer', 'ARPLayer', 'ARPDlg', 'RouterDlg', 'StaticRouterDlg', 'NetworkPackets'):
         if kind == 'ClCompile' and name == 'NetworkPackets':
             continue
         assert name + suffix in registered, f'Not registered: {name + suffix}'
@@ -40,7 +40,8 @@ for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX'):
 # [assignment6] group box 내부까지 부모 배경을 지워야 이동 전 입력칸/글자의 잔상이 남지 않는다.
 assert 'WS_CLIPCHILDREN' not in main_style, 'Group-box background must participate in scroll repaint'
 page_controls = {}
-for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'):
+for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG',
+             'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY'):
     width, height, body = dialogs[name]
     controls = re.findall(r'^\s*(\w+)\s+.*?\b(IDC_\w+),\s*(?:"[^"]*",[^,\n]+,)?\s*(\d+),(\d+),(\d+),(\d+)', body, re.M)
     values = [control for _, control, *_ in controls if control != 'IDC_STATIC']
@@ -55,7 +56,8 @@ for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_R
         assert x + w <= width and y + (18 if kind == 'COMBOBOX' else h) <= height, f'Out of dialog: {control}'
 
 bindings = [('ipc2019DlgNetwork.cpp', {'IDD_IPC2019_DIALOG'}), ('ARPDlg.cpp', {'IDD_ARP_DIALOG'}),
-            ('RouterDlg.cpp', {'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'})]
+            ('RouterDlg.cpp', {'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'}),
+            ('StaticRouterDlg.cpp', {'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY'})]
 for filename, targets in bindings:
     text = (source / filename).read_text(encoding='utf-8-sig')
     controls = set().union(*(page_controls[dialog] for dialog in targets))
@@ -70,6 +72,22 @@ for call in ('AddStaticRoute(', 'DeleteStaticRoute(', 'GetStaticRoutes(', 'GetSn
 for call in ('ValidateStaticRoutes(', 'CheckWiredAdapter(', 'SetStaticRouting('):
     assert call in network_ui, f'Router start missing validation: {call}'
 assert network_ui.index('m_routerDialog.Create(') < network_ui.index('ShowIpPage(false)')
+# [assignment7][static-router] 실행 진입점이 새 한 화면으로 바뀌었는지와 양쪽 NIC 수명/타이머의 실제 연결을 확인한다.
+entry = (source / 'ipc2019.cpp').read_text(encoding='utf-8-sig')
+assert 'CStaticRouterDlg dlg;' in entry and 'Cipc2019Dlg dlg;' not in entry
+router_main = (source / 'StaticRouterDlg.cpp').read_text(encoding='utf-8-sig')
+for call in ('SetStaticRouting(true)', 'ValidateStaticRoutes(', 'CheckWiredAdapter(', 'StartReceive(',
+             'CloseAdapter(', 'm_router.Tick(now)', 'port.arp->Tick(now)', 'port.ip->Tick(now)',
+             'SetTimer(ROUTER_UI_TIMER_ID', 'KillTimer(ROUTER_UI_TIMER_ID', 'SetNotifyWindow(NULL)',
+             'DeleteStaticRoute(', 'DeleteEntry(', 'AddProxy(', 'DeleteProxy(', 'GetSnapshot('):
+    assert call in router_main, f'Router-only main missing connection: {call}'
+root_controls = page_controls['IDD_STATIC_ROUTER_MAIN']
+assert {'IDC_ROUTER_START','IDC_ROUTER_END','IDC_ROUTER_ROUTES','IDC_ROUTER_ARP','IDC_ROUTER_PROXIES'} <= root_controls
+assert not any('PAGE_' in name or 'CHAT' in name or 'FILE' in name for name in root_controls)
+root_style = re.search(r'IDD_STATIC_ROUTER_MAIN DIALOGEX[^\n]+\nSTYLE ([^\n]+)',resource).group(1)
+assert 'WS_CHILD' not in root_style and 'WS_VSCROLL' not in root_style and 'WS_HSCROLL' not in root_style
+assert 'ON_WM_SIZE()' in router_main and 'WorkArea(' in router_main
+assert 'Port 1 (내부)' in router_ui and 'Port 2 (외부)' in router_ui
 for library in ('Iphlpapi.lib', 'Ole32.lib'):
     assert library in (source / 'ipc2019.vcxproj').read_text(encoding='utf-8-sig')
 
@@ -99,4 +117,4 @@ for path in source.glob('*'):
     new = Counter(line.strip() for line in path.read_text(encoding=encoding).splitlines() if '[assignment4]' in line)
     assert not old - new, f'Original assignment4 comments changed: {path.name}'
 
-print('PASS: project/filters, source registration, resource/UI bindings/bounds, static-router page/entry/start wiring, scroll initialization/messages and original assignment4 comments')
+print('PASS: project/filters, resource/UI bindings/bounds, router-only startup/two-NIC lifecycle/timers, legacy wiring and original assignment4 comments')

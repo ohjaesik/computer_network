@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the production RouterDlg declarations/body with minimal MFC declarations, not Windows/MFC."""
+"""Compile both production router dialogs with minimal declarations, not Windows/MFC."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,8 +12,10 @@ with tempfile.TemporaryDirectory(prefix='ipc-router-ui-') as directory:
     constants = text[text.index('#define MAX_LAYER_NUMBER'):text.index('// Microsoft Visual C++ will insert')]
     (temporary / 'ProtocolConstants.h').write_text(constants, encoding='utf-8')
     (temporary / 'afxdialogex.h').write_text('#pragma once\n', encoding='utf-8')
+    (temporary / 'pcap.h').write_text('#pragma once\nstruct pcap; using pcap_t = pcap;\n', encoding='utf-8')
     # Existing CBaseLayer compatibility overloads intentionally leave some parameters unused.
     subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-fsyntax-only',
                     '-I', str(temporary), '-I', str(source), '-I', str(root/'tests/portable'),
-                    '-include', str(root/'tests/portable/RouterSyntaxShim.h'), str(source/'RouterDlg.cpp')], check=True)
-print('PASS: production RouterDlg declarations/body and route-entry types with portable MFC declarations (not a Windows build)')
+                    '-include', str(root/'tests/portable/RouterSyntaxShim.h'), str(source/'RouterDlg.cpp'),
+                    str(source/'StaticRouterDlg.cpp')], check=True)
+print('PASS: production RouterDlg/StaticRouterDlg declarations, bodies and types with portable declarations (not a Windows build)')

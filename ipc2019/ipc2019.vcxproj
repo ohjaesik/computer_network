@@ -206,6 +206,7 @@
     <ClInclude Include="NetworkPackets.h" />
     <ClInclude Include="DialogScrollLayout.h" />
     <ClInclude Include="RouterDlg.h" />
+    <ClInclude Include="StaticRouterDlg.h" />
     <ClInclude Include="IPRouter.h" />
     <ClInclude Include="NetworkAddress.h" />
     <ClInclude Include="IPLayer.h" />
@@ -230,6 +231,7 @@
     <ClCompile Include="ipc2019DlgNetwork.cpp" />
     <ClCompile Include="ipc2019DlgScroll.cpp" />
     <ClCompile Include="RouterDlg.cpp" />
+    <ClCompile Include="StaticRouterDlg.cpp" />
     <ClCompile Include="IPRouter.cpp" />
     <ClCompile Include="IPLayer.cpp" />
     <ClCompile Include="ARPLayer.cpp" />

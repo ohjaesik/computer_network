@@ -16,7 +16,8 @@ BOOL CRouteEntryDlg::OnInitDialog()
         static_cast<CEdit*>(GetDlgItem(id))->SetLimitText(15);
     static_cast<CEdit*>(GetDlgItem(IDC_ROUTE_METRIC))->SetLimitText(5);
     auto* ports = static_cast<CComboBox*>(GetDlgItem(IDC_ROUTE_INTERFACE));
-    ports->AddString(_T("Port 0 (NIC 1)")); ports->AddString(_T("Port 1 (NIC 2)")); ports->SetCurSel(0);
+    // [assignment7][static-router] UI의 Port 1/2를 AddStaticRoute의 내부 index 0/1로 대응한다.
+    ports->AddString(_T("Port 1 (내부)")); ports->AddString(_T("Port 2 (외부)")); ports->SetCurSel(0);
     CheckDlgButton(IDC_ROUTE_UP,BST_CHECKED); SetDlgItemText(IDC_ROUTE_METRIC,_T("1"));
     return TRUE;
 }

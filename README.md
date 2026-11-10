@@ -1,5 +1,6 @@
 # computer_network
 # computer_network
+> 이 브랜치의 시작 화면은 문서 마지막의 **Assignment 07: Static Router — 자료의 한 화면 UI**를 따른다. 앞의 과거 과제 UI 설명은 보존된 기존 코드에 대한 내용이다.
 
 
 ## Assignment 4 추가 구현
@@ -164,15 +165,16 @@ Npcap SDK 경로는 `NPCAP_SDK_DIR`을 우선 사용하고, 없으면 `C:\NpcapS
 `python tests/run_dialog_scroll_tests.py`로 216개의 창 크기/100~250% 가상 배율 조건, 끝까지 접근 가능한 범위, 확대 후 offset 복원, 32비트 thumb, 포커스 표시를 검사한다. 실제 scroll cpp의 선언/구문도 최소 Win32/MFC 선언 대체물에서 검사하여 LONG/int 및 Windows min/max 매크로 충돌을 확인한다. 이 검사는 실제 Windows/MFC 빌드, 배율별 렌더링이나 마우스/키보드 동작을 실행한 검증이 아니므로 Visual Studio에서 다시 빌드하고 작은 화면에서 최종 확인해야 한다.
 
 
-## Assignment 07: Static Router (Practice 10 자료 기준)
+## Assignment 07: Static Router — 자료의 한 화면 UI
 
-`feature/assignment7-static-router`는 기존 ARP/GARP/PARP/채팅/파일을 보존하고 **Static Router 페이지**와 **수동 Routing Table**을 추가한다. 자세한 설계, 요구사항 대응, NIC/IP 설정, Router I/II의 U·UG 예시, ping/양쪽 패킷 캡처 절차는 [설계와 시연 안내](docs/assignment7-static-router.md)를 참고한다. 새 코드 주석은 기존 GARP/PARP와 구분해 `[assignment7][static-router]`로 표시한다.
+현재 `feature/assignment7-router-ui`는 프로그램을 실행하면 **라우터 전용 화면 한 개**를 띄운다. 이전 채팅/파일/ARP 페이지 전환과 모드 선택 UI는 실행하지 않는다. 자세한 주소 입력, U/UG 예시, ping/패킷 캡처 절차는 [설계와 시연 안내](docs/assignment7-static-router.md)를 참고한다. 과거 과제의 코드·리소스·주석은 보존하며 새 구현에는 `[assignment7][static-router]` 주석을 붙였다.
 
-- `Static Router 모드`를 체크한 뒤 서로 다른 **유선 물리 NIC 2개**와 각 IP/Mask를 UI에서 지정한다. Port 0=NIC 1, Port 1=NIC 2다.
-- Routing entry는 Add 입력창에서 직접 입력한다. 수동 모드는 connected subnet/Proxy에서 경로를 자동 생성하지 않는다. 빈 표로는 전달하지 못한다.
-- U/UG/H, 기본 경로 `/0`, 호스트 경로 `/32`, longest-prefix 우선 및 같은 prefix의 낮은 Metric을 처리한다. U의 ARP 대상은 목적지 IP, UG는 Gateway IP다.
-- 기존 IPv4 forwarding/TTL/Checksum/ARP 대기 큐를 사용해 **외부 호스트 사이의 ICMP Echo Request/Reply**를 전달한다. 자기 라우터 IP에 대한 ping 응답이나 수동 모드의 로컬 채팅/파일 기능은 시험 대상에 포함하지 않는다.
-- 수동 표는 연결 해제 동안 유지하고 다시 연결할 때 IP/Mask와 재검증한다. 프로그램 종료 시 디스크에 저장하지 않는다.
-- IP Helper로 물리 Ethernet 여부를 검사한다. `Iphlpapi.lib`/`Ole32.lib`는 프로젝트 공통 링크 설정에 추가했다. SDK 경로와 기존 상수/주석은 보존했다.
+- **라우터 PC만 유선 NIC 2개**를 사용한다. Host A/B는 각각 NIC 1개와 OS의 `ping`을 사용한다.
+- 위: 내부 **Port 1**/외부 **Port 2**의 NIC·MAC·IP·Mask 및 Start/End. 왼쪽: Static Routing Table. 오른쪽 위: ARP Cache. 오른쪽 아래: Proxy ARP Table.
+- 수동 라우팅이 기본이다. 두 NIC와 IP/Mask를 지정하고 왼쪽 Add에서 경로를 입력한 뒤 Start한다. 일반 정적 라우팅에서는 Proxy 표를 비워 둔다. End는 두 수신 스레드를 종료하며 수동 경로는 유지한다.
+- UI의 Port 1/2는 내부 index 0/1이다. MAC은 선택 NIC에서 조회해 읽기 전용으로 표시한다. IP는 직접 입력하며 Host/Windows의 주소나 IPv4 바인딩을 자동 변경하지 않는다.
+- U/UG/H, 기본 경로 `/0`, 호스트 경로 `/32`, longest-prefix/Metric, TTL/Checksum/ARP 대기 큐의 기존 구현을 사용한다. connected/Proxy 경로를 수동 표 대신 자동 사용하지 않는다. Proxy 표의 Add/Delete는 기존 대리 응답 기능에 연결되며 수동 경로를 몰래 만들지 않는다.
+- 작업 영역 안에 창을 표시하고 창 크기에 따라 배치를 조정한다. 표는 내용이 달라질 때만 다시 그리며 선택/스크롤을 유지한다. 창 전체의 외부 스크롤이나 다른 페이지는 만들지 않는다.
+- 기존 SDK 설정과 상수/주석을 유지했다. `StaticRouterDlg.h/.cpp`와 새 리소스를 프로젝트/filters에 등록했다. 앞의 과거 Assignment 설명은 남겨 둔 원래 소스의 동작이며 이 브랜치의 시작 UI는 위의 전용 화면이다.
 
-자동 검사는 실제 프로토콜 소스의 양방향 ICMP, U/UG/Host/default/Metric, gateway ARP와 경로 삭제 검사를 포함한다. Windows/MFC 빌드와 두 유선 NIC의 실제 ping/화면 캡처는 실습 장치에서 최종 확인해야 한다.
+프로젝트/리소스 연결, 새 UI의 타입·호출 구문 및 실제 프로토콜 회귀 검사를 제공한다. 이 환경의 검사는 Windows/MFC 빌드나 물리 Npcap NIC 실행을 대신하지 않는다. Visual Studio에서 최신 소스로 다시 빌드하고 두 NIC로 최종 확인한다.
