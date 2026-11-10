@@ -5,7 +5,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "ipc2019.h"
-#include "ipc2019Dlg.h"
+#include "StaticRouterDlg.h" // [assignment7][static-router] 실행 진입점을 자료의 라우터 전용 화면으로 바꾼다.
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -71,7 +71,7 @@ BOOL Cipc2019App::InitInstance()
 	// 적절한 내용으로 수정해야 합니다.
 	SetRegistryKey(_T("로컬 애플리케이션 마법사에서 생성된 애플리케이션"));
 
-	Cipc2019Dlg dlg;
+	CStaticRouterDlg dlg; // [assignment7][static-router] 이전 채팅/파일 Dialog는 생성하지 않는다.
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)

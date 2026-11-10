@@ -85,13 +85,39 @@
 #define IDC_ROUTE_INTERFACE            1140
 #define IDC_ROUTE_METRIC               1141
 
+// [assignment7][static-router] 자료의 라우터 전용 메인 창과 Proxy 입력창. 과거 과제의 ID는 재사용하지 않는다.
+#define IDD_STATIC_ROUTER_MAIN          134
+#define IDD_ROUTER_PROXY_ENTRY          135
+#define IDC_ROUTER_INTERNAL_DEVICE           1142
+#define IDC_ROUTER_EXTERNAL_DEVICE           1143
+#define IDC_ROUTER_INTERNAL_MAC              1144
+#define IDC_ROUTER_EXTERNAL_MAC              1145
+#define IDC_ROUTER_INTERNAL_IP               1146
+#define IDC_ROUTER_EXTERNAL_IP               1147
+#define IDC_ROUTER_INTERNAL_MASK             1148
+#define IDC_ROUTER_EXTERNAL_MASK             1149
+#define IDC_ROUTER_START                     1150
+#define IDC_ROUTER_END                       1151
+#define IDC_ROUTER_ROUTES                    1152
+#define IDC_ROUTER_ARP                       1153
+#define IDC_ROUTER_PROXIES                   1154
+#define IDC_ROUTER_ROUTE_ADD                 1155
+#define IDC_ROUTER_ROUTE_DELETE              1156
+#define IDC_ROUTER_ARP_DELETE                1157
+#define IDC_ROUTER_PROXY_ADD                 1158
+#define IDC_ROUTER_PROXY_DELETE              1159
+#define IDC_ROUTER_MESSAGE                   1160
+#define IDC_ROUTER_PROXY_DEVICE              1161
+#define IDC_ROUTER_PROXY_IP                  1162
+#define IDC_ROUTER_PROXY_MAC                 1163
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        134
+#define _APS_NEXT_RESOURCE_VALUE        136
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1142
+#define _APS_NEXT_CONTROL_VALUE         1164
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
