@@ -92,7 +92,12 @@ BOOL CARPLayer::SendRequest(uint32_t targetIp, bool force)
     const BOOL sent = Transmit(ARP_OPERATION_REQUEST, m_localIp, local,
         targetIp, unknown, broadcast);
     NotifyChanged();
-    if (!sent) Report(_T("ARP Request 송신 실패"));
+    if (!sent) {
+        CString message;
+        message.Format(_T("ARP Request 송신 실패: target=%u.%u.%u.%u (최근 NIC 오류 확인)"),
+            (targetIp >> 24) & 255u,(targetIp >> 16) & 255u,(targetIp >> 8) & 255u,targetIp & 255u);
+        Report(message);
+    }
     return sent;
 }
 
@@ -164,7 +169,9 @@ BOOL CARPLayer::Receive(unsigned char* payload, int length, const unsigned char*
     if (ntohs(packet.hardwareType) != ARP_HARDWARE_ETHERNET ||
         ntohs(packet.protocolType) != ETHERNET_TYPE_IPV4 || packet.hardwareLength != 6 ||
         packet.protocolLength != 4 || (operation != ARP_OPERATION_REQUEST && operation != ARP_OPERATION_REPLY) ||
-        !IsUnicastMac(packet.senderMac) || memcmp(source, packet.senderMac, 6)) return FALSE;
+        !IsUnicastMac(packet.senderMac) || !IsUnicastMac(source)) return FALSE;
+    // [assignment7][static-router] RFC 9568 8.1.2: VRRP ARP Reply는 Ethernet에 물리 MAC,
+    // ARP SHA에 가상 MAC을 사용할 수 있다. 일치를 강제하지 않고 SHA를 캐시에 학습한다.
 
     const uint32_t senderIp = ReadIp(packet.senderIp), targetIp = ReadIp(packet.targetIp);
     if (senderIp && !IsUnicastIp(senderIp)) return FALSE;

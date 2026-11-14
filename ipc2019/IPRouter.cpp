@@ -256,8 +256,9 @@ BOOL CIPRouter::SendOriginated(int sourceInterface, const unsigned char* packet,
     pending.expiresAt = GetTickCount64() + IP_RESOLVE_TIMEOUT_MS;
     const uint32_t nextHop = pending.nextHop;
     m_pendingBytes += pending.packet.size(); m_pending.push_back(std::move(pending));
-    if (output.arp->SendRequest(nextHop)) return TRUE;
-    m_pendingBytes -= m_pending.back().packet.size(); m_pending.pop_back(); return FALSE;
+    // 일시적인 ARP 주입 실패에도 큐/원래 만료 시각을 유지한다. Tick이 제한 시간 안에서 재시도한다.
+    if (!output.arp->SendRequest(nextHop)) Report(_T("ARP 송신 실패: 대기 패킷을 보존하고 제한 시간 내 재시도합니다."));
+    return TRUE; // 전송 완료가 아니라 대기 큐 접수
 }
 BOOL CIPRouter::Forward(int incoming, const unsigned char* packet, int length, const unsigned char* previousMac)
 {
@@ -297,9 +298,9 @@ BOOL CIPRouter::Forward(int incoming, const unsigned char* packet, int length, c
     const uint32_t nextHop = pending.nextHop;
     m_pendingBytes += pending.packet.size(); m_pending.push_back(std::move(pending));
     // [assignment7] ARP SendRequest는 ARP lock을 해제한 후 Ethernet을 호출한다. ARP 수신 콜백도 반대로 lock을 놓는다.
-    if (output.arp->SendRequest(nextHop)) return TRUE;
-    ++m_stats.dropped; ErrorLocked(m_pending.back(),3,1);
-    m_pendingBytes -= m_pending.back().packet.size(); m_pending.pop_back(); return FALSE;
+    // 첫 ARP 주입 실패만으로 원본 IP를 폐기하지 않는다. 재시도/최종 실패는 Tick이 처리한다.
+    if (!output.arp->SendRequest(nextHop)) Report(_T("ARP 송신 실패: 대기 패킷을 보존하고 제한 시간 내 재시도합니다."));
+    return TRUE;
 }
 void CIPRouter::FlushLocked(int outgoing, uint32_t nextHop, const unsigned char* mac, ULONGLONG now)
 {
