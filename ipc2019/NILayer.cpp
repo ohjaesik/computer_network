@@ -74,11 +74,13 @@ BOOL CNILayer::CheckWiredAdapter(int index)
 BOOL CNILayer::OpenAdapter(int index)
 {
 	CloseAdapter();
+	{ CSingleLock lock(&m_pcapLock, TRUE); m_ioError.Empty(); m_openDevice.Empty(); }
 	if (index < 0 || index >= GetAdapterCount()) {
 		m_error = _T("네트워크 어댑터를 선택하십시오.");
 		return FALSE;
 	}
 	char error[PCAP_ERRBUF_SIZE] = {};
+	m_openDevice = m_adapters[index].name;
 	m_handle = pcap_open_live(m_adapters[index].name, 65536, 1, 100, error);
 	if (!m_handle) { m_error = CA2T(error); return FALSE; }
 	if (pcap_datalink(m_handle) != DLT_EN10MB) {
@@ -149,7 +151,10 @@ void CNILayer::GetMacAddress(unsigned char* address) const
 BOOL CNILayer::StartReceive()
 {
 	if (!m_handle) return FALSE;
-	if (m_thread) return TRUE;
+	if (m_thread) {
+		if (IsReceiveRunning()) return TRUE;
+		m_error = _T("수신 worker가 종료되었습니다. End 후 Start로 장치를 다시 여세요."); return FALSE;
+	}
 	InterlockedExchange(&m_stop, FALSE);
 	// [assignment4] suspended 상태에서 m_bAutoDelete를 끈 뒤 시작해야 빠르게 종료되는 스레드가
 	// [assignment4] CWinThread 객체를 먼저 해제하는 경쟁을 막고 종료 시 직접 join할 수 있다.
@@ -160,6 +165,7 @@ BOOL CNILayer::StartReceive()
 		return FALSE;
 	}
 	m_thread->m_bAutoDelete = FALSE;
+	InterlockedExchange(&m_receiving, TRUE);
 	m_thread->ResumeThread();
 	return TRUE;
 }
@@ -173,18 +179,39 @@ void CNILayer::CloseAdapter()
 		delete m_thread;
 		m_thread = NULL;
 	}
+	InterlockedExchange(&m_receiving, FALSE);
+	CSingleLock lock(&m_pcapLock, TRUE);
 	if (m_handle) { pcap_close(m_handle); m_handle = NULL; }
+}
+
+CString CNILayer::GetIoError()
+{
+	CSingleLock lock(&m_pcapLock, TRUE); return m_ioError;
+}
+void CNILayer::RecordIoErrorLocked(const TCHAR* operation, int length, const char* detail)
+{
+	// pcap_geterr()의 버퍼는 다음 API 호출 전에 동일 잠금 안에서 복사한다.
+	const CString device(CA2T(static_cast<LPCSTR>(m_openDevice)));
+	const CString reason(CA2T(detail ? detail : "unknown Npcap error"));
+	m_ioError.Format(_T("%s / device=%s / length=%d / %s"), operation,
+		static_cast<LPCTSTR>(device), length, static_cast<LPCTSTR>(reason));
 }
 
 // [assignment4] Ethernet 프레임 길이를 검사하고 pcap_sendpacket으로 실제 장치에 송신한다.
 // [assignment4] 반환값은 로컬 송신 API의 성공 여부이며 상대방의 수신 확인(ACK)은 아니다.
 BOOL CNILayer::Send(unsigned char* payload, int length)
 {
-	if (!m_handle || !payload || length < ETHER_HEADER_SIZE || length > ETHER_MAX_SIZE)
-		return FALSE;
 	// [assignment4] 채팅 송신, 파일 송신, 수신 스레드가 같은 pcap 핸들을 동시에 호출하지 않게 한다.
 	CSingleLock lock(&m_pcapLock, TRUE);
-	return pcap_sendpacket(m_handle, payload, length) == 0;
+	if (!m_handle || !payload || length < ETHER_HEADER_SIZE || length > ETHER_MAX_SIZE) {
+		RecordIoErrorLocked(_T("송신 거부"), length, !m_handle ? "adapter is closed" : "invalid Ethernet frame");
+		return FALSE;
+	}
+	if (pcap_sendpacket(m_handle, payload, length) != 0) {
+		RecordIoErrorLocked(_T("pcap_sendpacket 실패"), length, pcap_geterr(m_handle));
+		return FALSE;
+	}
+	return TRUE;
 }
 
 // [assignment4] pcap_next_ex로 수신 프레임을 반복 읽고 잘린 프레임을 제외하여 Ethernet 계층에 전달한다.
@@ -200,6 +227,8 @@ UINT __cdecl CNILayer::ReadingThread(LPVOID parameter)
 			pcap_pkthdr* header = NULL;
 			const unsigned char* data = NULL;
 			result = pcap_next_ex(layer->m_handle, &header, &data);
+			if (result < 0) layer->RecordIoErrorLocked(_T("pcap_next_ex 종료"), 0,
+				result == -1 ? pcap_geterr(layer->m_handle) : "capture ended unexpectedly");
 			// [assignment4] pcap 버퍼의 수명은 다음 캡처 호출까지다. lock 안에서 복사한 뒤
 			// [assignment4] lock 밖에서 상위 계층을 호출해야 파일 기록 중에도 송신할 수 있다.
 			if (result == 1 && header && data && header->caplen == header->len &&
@@ -211,5 +240,6 @@ UINT __cdecl CNILayer::ReadingThread(LPVOID parameter)
 		CBaseLayer* upper = layer->GetUpperLayer(0);
 		if (upper && !frame.empty()) upper->Receive(frame.data(), static_cast<int>(frame.size()));
 	}
+	InterlockedExchange(&layer->m_receiving, FALSE);
 	return 0;
 }

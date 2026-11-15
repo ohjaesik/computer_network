@@ -23,6 +23,9 @@ public:
 	void CloseAdapter();
 	void GetMacAddress(unsigned char* address) const;
 	CString GetError() const { return m_error; }
+	// [assignment7][static-router] UI가 worker 종료와 최근 장치 오류를 안전하게 조회한다.
+	BOOL IsReceiveRunning() { return InterlockedCompareExchange(&m_receiving, FALSE, FALSE) != FALSE; }
+	CString GetIoError();
 	BOOL Send(unsigned char* payload, int length);
 	static UINT __cdecl ReadingThread(LPVOID parameter);
 
@@ -33,7 +36,11 @@ private:
 	pcap_t* m_handle;
 	CWinThread* m_thread;
 	volatile LONG m_stop;
+	volatile LONG m_receiving = FALSE;
 	CCriticalSection m_pcapLock;
+	CString m_ioError;
+	CStringA m_openDevice;
+	void RecordIoErrorLocked(const TCHAR* operation, int length, const char* detail);
 	unsigned char m_mac[ETHERNET_ADDRESS_SIZE];
 	CString m_error;
 	BOOL QueryMac(const CStringA& name);

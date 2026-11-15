@@ -11,11 +11,13 @@
 using namespace NetworkPackets;
 
 struct Wire : CBaseLayer {
+    int failArpSends = 0;
     std::deque<std::vector<unsigned char>> frames;
     std::vector<std::vector<unsigned char>> history;
     Wire() : CBaseLayer("NI") {}
     BOOL Send(unsigned char* data, int length) override {
         assert(length >= 60 && length <= 1514);
+        if (failArpSends && data[12] == 8 && data[13] == 6) { --failArpSends; return FALSE; }
         frames.emplace_back(data, data + length); history.push_back(frames.back()); return TRUE;
     }
 };
@@ -95,6 +97,8 @@ void FixIpChecksum(std::vector<unsigned char>& frame) {
 #include "static_router_cases.h"
 
 int main() {
+    TestGatewayArpVirtualMac();
+    TestStaticRouterArpSendRecovery();
     TestStaticRouting();
     static_assert(CHAT_APP_DATA_SIZE == 1476 && FILE_APP_DATA_SIZE == 1468, "IP MTU budgets");
     {
@@ -146,8 +150,8 @@ int main() {
         assert(a.chat.Send(&shortText,1)); assert(!memcmp(a.ni.frames.back().data()+6,advertised,6));
         Pump(a,b); b.ip.SetDestination(a.address); assert(b.chat.Send(&shortText,1)); Pump(a,b);
         assert(a.ui.messages.size()==1);
-        // Bad ARP header lengths and Ethernet/SHA disagreement are rejected.
-        garp[18]=5; Deliver(garp,b); garp[18]=6; garp[22]^=2; Deliver(garp,b);
+        // Bad ARP header lengths and multicast SHA are rejected (MAC equality is not required).
+        garp[18]=5; Deliver(garp,b); garp[18]=6; garp[22]|=1; Deliver(garp,b);
         assert(b.arp.Lookup(a.address,mac) && !memcmp(mac,advertised,6));
         testNow+=ARP_COMPLETE_TIMEOUT_MS; a.arp.Tick(testNow); b.arp.Tick(testNow);
         assert(!a.arp.Lookup(b.address,mac) && !b.arp.Lookup(a.address,mac));

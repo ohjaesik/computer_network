@@ -252,6 +252,14 @@ void CStaticRouterDlg::OnTimer(UINT_PTR id)
 {
     if (id != ROUTER_UI_TIMER_ID) { CDialogEx::OnTimer(id); return; }
     if (m_connected) {
+        for (int i = 0; i < ROUTER_MAX_INTERFACES; ++i) {
+            if (!m_ports[i].ni->IsReceiveRunning()) {
+                const CString reason = m_ports[i].ni->GetIoError();
+                CString message; message.Format(_T("Port %d 수신 중단: %s. 장치를 확인하고 Start로 재연결하세요."),
+                    i+1,static_cast<LPCTSTR>(reason));
+                StopNetwork(); SetStatus(message); RefreshStatus(); return;
+            }
+        }
         const ULONGLONG now = GetTickCount64();
         for (auto& port : m_ports) { port.arp->Tick(now); port.ip->Tick(now); }
         m_router.Tick(now);
@@ -268,6 +276,13 @@ void CStaticRouterDlg::RefreshStatus()
     text.Format(_T("전달 %llu / 대기 %llu / 폐기 %llu\r\n%s"),
         static_cast<unsigned long long>(stats.forwarded),static_cast<unsigned long long>(stats.waiting),
         static_cast<unsigned long long>(stats.dropped),static_cast<LPCTSTR>(m_status));
+    if (m_connected) for (int i = 0; i < ROUTER_MAX_INTERFACES; ++i) {
+        const CString error = m_ports[i].ni->GetIoError();
+        if (!error.IsEmpty()) {
+            CString detail; detail.Format(_T("\r\n[Port %d 최근 NIC 오류] %s"),i+1,static_cast<LPCTSTR>(error));
+            text += detail;
+        }
+    }
     if (text != m_displayedStatus) { SetDlgItemText(IDC_ROUTER_MESSAGE,text); m_displayedStatus = text; }
 }
 LRESULT CStaticRouterDlg::OnArpChanged(WPARAM, LPARAM) { RefreshTables(); return 0; }

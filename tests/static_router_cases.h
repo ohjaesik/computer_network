@@ -32,6 +32,109 @@ inline std::vector<unsigned char> LastIpv4(const Wire& wire)
         if (Type(*it) == ETHERNET_TYPE_IPV4) return *it;
     assert(false); return {};
 }
+// Failed local ARP injection must not discard the original IP packet before its deadline.
+inline void TestStaticRouterArpSendRecovery()
+{
+    for (bool originated : {false,true}) for (bool permanentFailure : {false,true}) {
+        Host a(1,0xc0a83c0a), left(10,0xc0a83c01), right(20,0xac141e01), b(2,0xac141e14);
+        CIPRouter router; CString error;
+        router.SetStaticRouting(true);
+        router.BindInterface(0,left.address,0xffffff00,&left.arp,&left.ethernet);
+        router.BindInterface(1,right.address,0xffffff00,&right.arp,&right.ethernet);
+        left.ip.SetRouter(&router,0); left.arp.SetRouter(&router,0);
+        right.ip.SetRouter(&router,1); right.arp.SetRouter(&router,1);
+        CIPRouter::STATIC_ROUTE route;
+        route.destination = 0xc0a83c00; route.mask = 0xffffff00;
+        route.outgoing = 0; route.flags = ROUTE_FLAG_UP;
+        assert(router.AddStaticRoute(route,error));
+        route.destination = 0xac141e00; route.outgoing = 1;
+        assert(router.AddStaticRoute(route,error));
+        a.arp.SendRequest(left.address); PumpRouted(a,left,right,b);
+        auto request = PingFrame(a,b.address,left.mac);
+        right.ni.failArpSends = permanentFailure ? 100 : 1;
+        const ULONGLONG started = testNow;
+        if (originated) assert(router.SendOriginated(0,request.data()+14,int(request.size())-14,true));
+        else Deliver(request,left);
+        assert(router.GetStats().waiting == 1 && router.GetStats().dropped == 0);
+        assert(right.ni.frames.empty());
+        testNow += ARP_REQUEST_INTERVAL_MS;
+        router.Tick(testNow);
+        if (!permanentFailure) {
+            PumpRouted(a,left,right,b);
+            assert(router.GetStats().waiting == 0 && router.GetStats().dropped == 0);
+            assert(router.GetStats().forwarded == (originated ? 0u : 1u));
+            const auto sent = LastIpv4(right.ni);
+            assert(sent[22] == (originated ? 128 : 127));
+            assert(std::equal(request.begin()+34,request.end(),sent.begin()+34));
+            assert(Checksum(sent.data()+14,20) == 0);
+        } else {
+            assert(router.GetStats().waiting == 1);
+            testNow = started + IP_RESOLVE_TIMEOUT_MS;
+            router.Tick(testNow);
+            assert(router.GetStats().waiting == 0 && router.GetStats().dropped == 1);
+            if (!originated) { const auto failure = LastIpv4(left.ni); assert(failure[34] == 3 && failure[35] == 1); }
+            right.ni.failArpSends = 0;
+            b.arp.SendRequest(right.address); PumpRouted(a,left,right,b);
+            assert(router.GetStats().forwarded == 0 && router.GetStats().waiting == 0);
+            for (const auto& sent : right.ni.history) assert(Type(sent) != ETHERNET_TYPE_IPV4);
+        }
+    }
+}
+
+inline void TestGatewayArpVirtualMac()
+{
+    Host a(1,0xc0a8320a), left(10,0xc0a83201), right(20,0x0a0a0114);
+    CIPRouter router; CString error; router.SetStaticRouting(true);
+    router.BindInterface(0,left.address,0xffffff00,&left.arp,&left.ethernet);
+    router.BindInterface(1,right.address,0xffffff00,&right.arp,&right.ethernet);
+    left.ip.SetRouter(&router,0); left.arp.SetRouter(&router,0);
+    right.ip.SetRouter(&router,1); right.arp.SetRouter(&router,1);
+    assert(router.AddStaticRoute(StaticRoute(0xc0a83200,0xffffff00,0,0),error));
+    assert(router.AddStaticRoute(StaticRoute(0x0a0a0100,0xffffff00,0,1),error));
+    assert(router.AddStaticRoute(StaticRoute(0xac140100,0xffffff00,0x0a0a01fe,1,
+        ROUTE_FLAG_UP | ROUTE_FLAG_GATEWAY),error));
+    const auto request = PingFrame(a,0xac14010a,left.mac);
+    Deliver(request,left);
+    assert(router.GetStats().waiting == 1);
+    const auto query = right.ni.frames.back();
+    assert(Type(query) == ETHERNET_TYPE_ARP && query.size() == 60);
+    assert(ReadIp(query.data()+28) == right.address && ReadIp(query.data()+38) == 0x0a0a01fe);
+    assert(!memcmp(query.data()+6,right.mac,6) && !memcmp(query.data()+22,right.mac,6));
+    const unsigned char broadcast[6] = {255,255,255,255,255,255};
+    assert(!memcmp(query.data(),broadcast,6));
+    // Independent ARP wire bytes: RFC 9568 8.1.2 uses physical Ethernet source and virtual SHA.
+    const unsigned char physical[6] = {0,0x11,0x22,0x33,0x44,0x55};
+    const unsigned char virtualMac[6] = {0,0,0x5e,0,1,1};
+    std::vector<unsigned char> reply(60,0);
+    memcpy(reply.data(),right.mac,6); memcpy(reply.data()+6,physical,6);
+    const unsigned char fields[] = {8,6,0,1,8,0,6,4,0,2};
+    memcpy(reply.data()+12,fields,sizeof(fields)); memcpy(reply.data()+22,virtualMac,6);
+    WriteIp(reply.data()+28,0x0a0a01fe); memcpy(reply.data()+32,right.mac,6); WriteIp(reply.data()+38,right.address);
+    for (int kind = 0; kind < 3; ++kind) {
+        auto bad = reply; memset(bad.data()+22,kind == 0 ? 255 : 0,6);
+        if (kind == 2) bad[22] = 1;
+        Deliver(bad,right); unsigned char rejected[6];
+        assert(!right.arp.Lookup(0x0a0a01fe,rejected));
+        assert(router.GetStats().waiting == 1 && router.GetStats().forwarded == 0);
+    }
+    Deliver(reply,right);
+    unsigned char learned[6]; assert(right.arp.Lookup(0x0a0a01fe,learned) && !memcmp(learned,virtualMac,6));
+    const auto sent = LastIpv4(right.ni);
+    assert(!memcmp(sent.data(),virtualMac,6) && !memcmp(sent.data()+6,right.mac,6));
+    assert(ReadIp(sent.data()+26) == a.address && ReadIp(sent.data()+30) == 0xac14010a);
+    assert(sent[22] == 127 && Checksum(sent.data()+14,20) == 0);
+    assert(std::equal(request.begin()+34,request.end(),sent.begin()+34));
+    assert(router.GetStats().waiting == 0 && router.GetStats().forwarded == 1);
+    // The subsequent remote echo reply also routes back across the other port.
+    Host remote(30,0xac14010a);
+    a.arp.SendRequest(left.address); Pump(a,left);
+    auto response = PingFrame(remote,a.address,right.mac,0);
+    memcpy(response.data()+6,physical,6); Deliver(response,right);
+    const auto returned = LastIpv4(left.ni);
+    assert(!memcmp(returned.data(),a.mac,6) && returned[34] == 0 && returned[22] == 127);
+    assert(router.GetStats().forwarded == 2);
+}
+
 inline void TestStaticRouting()
 {
     Host a(1,0xc0a83c0a), left(10,0xc0a83c01), right(20,0xac141e01), b(2,0xac141e14);
