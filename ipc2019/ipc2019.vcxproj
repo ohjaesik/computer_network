@@ -208,6 +208,7 @@
     <ClInclude Include="RouterDlg.h" />
     <ClInclude Include="StaticRouterDlg.h" />
     <ClInclude Include="IPRouter.h" />
+    <ClInclude Include="NatTable.h" />
     <ClInclude Include="NetworkAddress.h" />
     <ClInclude Include="IPLayer.h" />
     <ClInclude Include="ARPLayer.h" />
@@ -233,6 +234,7 @@
     <ClCompile Include="RouterDlg.cpp" />
     <ClCompile Include="StaticRouterDlg.cpp" />
     <ClCompile Include="IPRouter.cpp" />
+    <ClCompile Include="NatTable.cpp" />
     <ClCompile Include="IPLayer.cpp" />
     <ClCompile Include="ARPLayer.cpp" />
     <ClCompile Include="ARPDlg.cpp" />

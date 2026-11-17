@@ -110,14 +110,26 @@
 #define IDC_ROUTER_PROXY_DEVICE              1161
 #define IDC_ROUTER_PROXY_IP                  1162
 #define IDC_ROUTER_PROXY_MAC                 1163
+#define IDC_ROUTER_NAT_TABLE                 1164
+#define IDC_ROUTER_NAT_ENABLE                1165
+// [assignment8][nat-bonus] 포트포워딩 설정창: 기존 컨트롤을 삭제하거나 ID를 재사용하지 않는다.
+#define IDD_NAT_PORT_FORWARD                136
+#define IDC_ROUTER_PORT_FORWARD             1166
+#define IDC_NAT_FORWARD_RULES               1167
+#define IDC_NAT_FORWARD_PROTOCOL            1168
+#define IDC_NAT_FORWARD_OUTSIDE_PORT        1169
+#define IDC_NAT_FORWARD_INSIDE_IP           1170
+#define IDC_NAT_FORWARD_INSIDE_PORT         1171
+#define IDC_NAT_FORWARD_ADD                 1172
+#define IDC_NAT_FORWARD_DELETE              1173
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        136
+#define _APS_NEXT_RESOURCE_VALUE        137
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1164
+#define _APS_NEXT_CONTROL_VALUE          1174
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

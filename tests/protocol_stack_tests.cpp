@@ -95,11 +95,22 @@ void FixIpChecksum(std::vector<unsigned char>& frame) {
 }
 
 #include "static_router_cases.h"
+#include "nat_i_cases.h"
+#include "nat_bonus_cases.h"
 
 int main() {
     TestGatewayArpVirtualMac();
     TestStaticRouterArpSendRecovery();
     TestStaticRouting();
+    NatTests::TestDirect();
+    NatTests::TestCiscoPath();
+    NatTests::TestMappingReuse();
+    NatBonusTests::TestTransportDirect();
+    NatBonusTests::TestPortForwardCisco();
+    NatBonusTests::TestTransportTable();
+    NatBonusTests::TestRuleValidation();
+    std::cout << "PASS: TCP/UDP PAT and Cisco port forwarding, pseudo checksums, UDP zero/ffff, TCP lifecycle, reserved ports and expiry\n";
+    std::cout << "PASS: NAT I direct/Cisco paths, Cisco ARP and missing private return route, ICMP ID collision/restore, checksums and session expiry\n";
     static_assert(CHAT_APP_DATA_SIZE == 1476 && FILE_APP_DATA_SIZE == 1468, "IP MTU budgets");
     {
         Host a(1), b(2); assert(a.ip.SetDestination(b.address));

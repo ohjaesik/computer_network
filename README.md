@@ -1,6 +1,5 @@
 # computer_network
-# computer_network
-> 이 브랜치의 시작 화면은 문서 마지막의 **Assignment 07: Static Router — 자료의 한 화면 UI**를 따른다. 앞의 과거 과제 UI 설명은 보존된 기존 코드에 대한 내용이다.
+> 현재 브랜치는 Router II에 ICMP/TCP/UDP NAPT와 TCP/UDP 포트포워딩을 추가한다. [기본 ICMP/NIC/경로 설정](docs/assignment8-nat-i.md), [가산점 구현·TCP/UDP/Cisco 시연 안내](docs/assignment8-nat-bonus.md)를 참고한다. 아래 과거 과제 설명은 기존 코드에 대한 내용이다.
 
 
 ## Assignment 4 추가 구현
@@ -151,7 +150,7 @@ Npcap SDK 경로는 `NPCAP_SDK_DIR`을 우선 사용하고, 없으면 `C:\NpcapS
 
 `python tests/check_project_integration.py`는 프로젝트/filters의 파일 등록, 리소스 ID/화면 범위/컨트롤 연결, 기존 `[assignment4]` 주석 보존을 검사한다. 주석 대조에는 git 이력이 필요하다. 새 MAC에 대한 Probe의 unicast Reply 수신, 중계 PC 자체의 양방향 채팅, 간접 next-hop 전달/Proxy 경로 삭제도 프로토콜 테스트에 포함된다.
 
-이 구현은 두 NIC/정적 경로/1500바이트 Ethernet을 위한 실습용 raw IPv4 forwarding이다. 상용 RFC 1812 라우터 전체 기능, NAT, 동적 경로 학습, IPv4 옵션 처리, 로컬 IPv4 단편 재조립은 구현하지 않았다. 중계 IPv4 조각은 각각 전달할 수 있다. 기존 채팅/파일에 ACK나 재전송을 추가한 것은 아니며, 한 번에 처리하는 앱 수신 스트림과 헤더의 제약은 과제 4와 동일하다.
+이 구현은 두 NIC/정적 경로/1500바이트 Ethernet을 위한 실습용 raw IPv4 forwarding이다. 이 단락은 과거 Router II 구현 범위를 설명한다. NAT는 이후 Assignment 08에서 추가했으며, 상용 RFC 1812 라우터 전체 기능, 동적 경로 학습, IPv4 옵션 처리, 로컬 IPv4 단편 재조립은 구현하지 않았다. 중계 IPv4 조각은 각각 전달할 수 있다. 기존 채팅/파일에 ACK나 재전송을 추가한 것은 아니며, 한 번에 처리하는 앱 수신 스트림과 헤더의 제약은 과제 4와 동일하다.
 
 ### 작은 화면에서 창 스크롤
 

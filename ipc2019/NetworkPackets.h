@@ -49,6 +49,18 @@ namespace NetworkPackets {
         while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
         return uint16_t(~sum);
     }
+    // [assignment8][nat-bonus] TCP/UDP는 IP 출발지/목적지(8B), 0+Protocol(2B), 전송 길이(2B)의
+    // pseudo header와 TCP/UDP 전체를 함께 더한다. pseudo header는 계산용이며 wire에 붙이지 않는다.
+    // 호출부가 IPv4/전송 헤더 길이를 검사한 뒤 사용하며, 홀수 길이의 끝 바이트는 상위 8비트로 더한다.
+    inline uint16_t TransportChecksum(const uint8_t* ip, size_t ihl, size_t length) {
+        uint32_t sum = ip[9] + static_cast<uint32_t>(length);
+        for (size_t i = 12; i < 20; i += 2) sum += (uint16_t(ip[i]) << 8) | ip[i+1];
+        const uint8_t* data = ip + ihl;
+        while (length >= 2) { sum += (uint16_t(data[0]) << 8) | data[1]; data += 2; length -= 2; }
+        if (length) sum += uint16_t(data[0]) << 8;
+        while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
+        return uint16_t(~sum);
+    }
     inline bool IsUnicastIp(uint32_t ip) {
         const uint8_t first = uint8_t(ip >> 24);
         return first != 0 && first != 127 && first < 224;

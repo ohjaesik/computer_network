@@ -21,6 +21,79 @@ namespace {
     void RestoreTop(CListCtrl& list, int top) {
         if (list.GetItemCount()) list.EnsureVisible((std::min)(top,list.GetItemCount()-1),FALSE);
     }
+    bool ParsePort(CString text, uint16_t& port) {
+        text.Trim(); unsigned int value = 0;
+        if (text.IsEmpty() || text.GetLength() > 5) return false;
+        for (int i = 0; i < text.GetLength(); ++i) {
+            if (text[i] < _T('0') || text[i] > _T('9')) return false;
+            value = value*10 + text[i]-_T('0');
+        }
+        if (!value || value > 65535u) return false;
+        port = static_cast<uint16_t>(value); return true;
+    }
+}
+
+BEGIN_MESSAGE_MAP(CNatPortForwardDlg,CDialogEx)
+    ON_BN_CLICKED(IDC_NAT_FORWARD_ADD,&CNatPortForwardDlg::OnAdd)
+    ON_BN_CLICKED(IDC_NAT_FORWARD_DELETE,&CNatPortForwardDlg::OnDelete)
+END_MESSAGE_MAP()
+void CNatPortForwardDlg::DoDataExchange(CDataExchange* dx)
+{
+    CDialogEx::DoDataExchange(dx); DDX_Control(dx,IDC_NAT_FORWARD_RULES,m_rules);
+}
+BOOL CNatPortForwardDlg::OnInitDialog()
+{
+    CDialogEx::OnInitDialog();
+    auto* protocols = static_cast<CComboBox*>(GetDlgItem(IDC_NAT_FORWARD_PROTOCOL));
+    protocols->AddString(_T("TCP")); protocols->AddString(_T("UDP")); protocols->SetCurSel(0);
+    static_cast<CEdit*>(GetDlgItem(IDC_NAT_FORWARD_INSIDE_IP))->SetLimitText(15);
+    static_cast<CEdit*>(GetDlgItem(IDC_NAT_FORWARD_INSIDE_PORT))->SetLimitText(5);
+    static_cast<CEdit*>(GetDlgItem(IDC_NAT_FORWARD_OUTSIDE_PORT))->SetLimitText(5);
+    m_rules.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
+    const TCHAR* columns[] = {_T("Protocol"),_T("Outside Port"),_T("Inside IP"),_T("Inside Port")};
+    CRect rect; m_rules.GetClientRect(&rect);
+    const int widths[] = {17,22,39,22};
+    for (int i = 0; i < 4; ++i) m_rules.InsertColumn(i,columns[i],LVCFMT_LEFT,
+        (std::max)(60,(rect.Width()-24)*widths[i]/100));
+    RefreshRules(); return TRUE;
+}
+void CNatPortForwardDlg::RefreshRules()
+{
+    std::vector<CNatTable::PORT_FORWARD> rules; m_router->GetPortForwards(rules);
+    m_rules.SetRedraw(FALSE); m_rules.DeleteAllItems();
+    for (const auto& rule : rules) {
+        const int row = m_rules.InsertItem(m_rules.GetItemCount(),rule.protocol == IP_PROTOCOL_TCP ? _T("TCP") : _T("UDP"));
+        CString value; value.Format(_T("%u"),static_cast<unsigned int>(rule.outsidePort)); m_rules.SetItemText(row,1,value);
+        m_rules.SetItemText(row,2,NetworkAddress::FormatIp(rule.insideIp));
+        value.Format(_T("%u"),static_cast<unsigned int>(rule.insidePort)); m_rules.SetItemText(row,3,value);
+        m_rules.SetItemData(row,rule.id);
+    }
+    m_rules.SetRedraw(TRUE); m_rules.Invalidate();
+}
+void CNatPortForwardDlg::OnAdd()
+{
+    CNatTable::PORT_FORWARD rule; CString text, error;
+    const int protocol = static_cast<CComboBox*>(GetDlgItem(IDC_NAT_FORWARD_PROTOCOL))->GetCurSel();
+    if (protocol != 0 && protocol != 1) { AfxMessageBox(_T("TCP 또는 UDP를 선택하세요.")); return; }
+    rule.protocol = protocol == 0 ? IP_PROTOCOL_TCP : IP_PROTOCOL_UDP;
+    GetDlgItemText(IDC_NAT_FORWARD_INSIDE_IP,text);
+    if (!NetworkAddress::ParseIp(text,rule.insideIp)) { AfxMessageBox(_T("내부 서버 IPv4 주소를 확인하세요.")); return; }
+    GetDlgItemText(IDC_NAT_FORWARD_OUTSIDE_PORT,text);
+    if (!ParsePort(text,rule.outsidePort)) { AfxMessageBox(_T("외부 포트는 1~65535의 정수입니다.")); return; }
+    GetDlgItemText(IDC_NAT_FORWARD_INSIDE_PORT,text);
+    if (!ParsePort(text,rule.insidePort)) { AfxMessageBox(_T("내부 포트는 1~65535의 정수입니다.")); return; }
+    if (!m_router->AddPortForward(rule,error)) { AfxMessageBox(error); return; }
+    RefreshRules();
+}
+void CNatPortForwardDlg::OnDelete()
+{
+    const int selected = m_rules.GetNextItem(-1,LVNI_SELECTED);
+    if (selected < 0) return;
+    CString error;
+    if (!m_router->DeletePortForward(static_cast<uint32_t>(m_rules.GetItemData(selected)),error)) {
+        AfxMessageBox(error); return;
+    }
+    RefreshRules();
 }
 
 BEGIN_MESSAGE_MAP(CRouterProxyEntryDlg,CDialogEx)
@@ -66,6 +139,7 @@ BEGIN_MESSAGE_MAP(CStaticRouterDlg,CDialogEx)
     ON_BN_CLICKED(IDC_ROUTER_ARP_DELETE,&CStaticRouterDlg::OnArpDelete)
     ON_BN_CLICKED(IDC_ROUTER_PROXY_ADD,&CStaticRouterDlg::OnProxyAdd)
     ON_BN_CLICKED(IDC_ROUTER_PROXY_DELETE,&CStaticRouterDlg::OnProxyDelete)
+    ON_BN_CLICKED(IDC_ROUTER_PORT_FORWARD,&CStaticRouterDlg::OnPortForward)
     ON_MESSAGE(WM_ARP_CHANGED,&CStaticRouterDlg::OnArpChanged)
     ON_MESSAGE(WM_NETWORK_EVENT,&CStaticRouterDlg::OnNetworkEvent)
     ON_WM_TIMER()
@@ -106,10 +180,13 @@ void CStaticRouterDlg::DoDataExchange(CDataExchange* dx)
     DDX_Control(dx,IDC_ROUTER_EXTERNAL_DEVICE,m_ports[1].devices);
     DDX_Control(dx,IDC_ROUTER_ROUTES,m_routes); DDX_Control(dx,IDC_ROUTER_ARP,m_cache);
     DDX_Control(dx,IDC_ROUTER_PROXIES,m_proxies);
+    DDX_Control(dx,IDC_ROUTER_NAT_TABLE,m_natTable);
 }
 BOOL CStaticRouterDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog(); InitColumns();
+    // [assignment8][nat-i] 데모는 NAT를 기본 사용한다. 연결 전에 해제하면 Router II와 결과를 비교할 수 있다.
+    CheckDlgButton(IDC_ROUTER_NAT_ENABLE,BST_CHECKED);
     // [assignment7][static-router] 두 ComboBox는 같은 Npcap 장치 목록에서 내부/외부 NIC를 각각 고른다.
     // [assignment7][static-router] NIC를 선택하면 MAC만 미리 읽고, IP는 사용자가 입력한다. Host의 OS 설정을 자동 변경하지 않는다.
     for (int i = 0; i < ROUTER_MAX_INTERFACES; ++i) {
@@ -182,6 +259,8 @@ void CStaticRouterDlg::OnStart()
     }
     CString error;
     if (!m_router.ValidateStaticRoutes(error)) { AfxMessageBox(error); StopNetwork(); return; }
+    m_router.SetNatEnabled(IsDlgButtonChecked(IDC_ROUTER_NAT_ENABLE) == BST_CHECKED);
+    if (!m_router.ValidatePortForwards(error)) { AfxMessageBox(error); StopNetwork(); return; }
     // [assignment7][static-router] 양쪽 계층/표를 준비한 뒤 수신을 시작한다. 한쪽 시작 실패 시 두 링크 모두 정리한다.
     for (int i = 0; i < ROUTER_MAX_INTERFACES; ++i) {
         if (!m_ports[i].arp->BeginAddressCheck(macs[i]) || !m_ports[i].ni->StartReceive()) {
@@ -215,6 +294,8 @@ void CStaticRouterDlg::RefreshControls()
     GetDlgItem(IDC_ROUTER_START)->EnableWindow(!m_connected && m_timerActive &&
         m_ports[0].ni->GetAdapterCount() >= 2 && m_ports[1].ni->GetAdapterCount() >= 2);
     GetDlgItem(IDC_ROUTER_END)->EnableWindow(m_connected);
+    GetDlgItem(IDC_ROUTER_NAT_ENABLE)->EnableWindow(!m_connected);
+    GetDlgItem(IDC_ROUTER_PORT_FORWARD)->EnableWindow(!m_connected);
     GetDlgItem(IDC_ROUTER_ARP_DELETE)->EnableWindow(m_connected);
     GetDlgItem(IDC_ROUTER_PROXY_ADD)->EnableWindow(m_connected && m_ports[0].arp->IsUsable() && m_ports[1].arp->IsUsable());
     GetDlgItem(IDC_ROUTER_PROXY_DELETE)->EnableWindow(m_connected);
@@ -247,6 +328,13 @@ void CStaticRouterDlg::OnProxyDelete()
     if (row >= 0 && row < static_cast<int>(m_proxyRows.size())) {
         const auto key = m_proxyRows[row]; m_ports[key.port].arp->DeleteProxy(key.ip); RefreshTables();
     }
+}
+void CStaticRouterDlg::OnPortForward()
+{
+    // [assignment8][nat-bonus] 메인 창을 늘리지 않고 규칙 편집만 별도 모달 창에서 처리한다.
+    if (m_connected) return;
+    CNatPortForwardDlg editor(&m_router,this); editor.DoModal();
+    SetStatus(_T("포트포워딩 규칙은 Start 시 Port 2 IP와 연결됩니다. 내부 서버의 수신 포트와 기본 게이트웨이를 확인하세요."));
 }
 void CStaticRouterDlg::OnTimer(UINT_PTR id)
 {
@@ -306,14 +394,17 @@ void CStaticRouterDlg::OnDestroy()
 
 void CStaticRouterDlg::InitColumns()
 {
-    for (CListCtrl* list : {&m_routes,&m_cache,&m_proxies})
+    for (CListCtrl* list : {&m_routes,&m_cache,&m_proxies,&m_natTable})
         list->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
     const TCHAR* route[] = {_T("Destination"),_T("Netmask"),_T("Gateway"),_T("Flag"),_T("Interface"),_T("Metric")};
     const TCHAR* cache[] = {_T("IP Address"),_T("Ethernet Address"),_T("IF"),_T("State")};
     const TCHAR* proxy[] = {_T("Device"),_T("IP Address"),_T("Ethernet Address")};
+    const TCHAR* nat[] = {_T("Protocol"),_T("Inside IP"),_T("Port / ID"),_T("Outside IP"),_T("Port / ID"),
+        _T("Remote IP:Port"),_T("State / Mode"),_T("Timer (s)")};
     for (int i = 0; i < 6; ++i) m_routes.InsertColumn(i,route[i],LVCFMT_LEFT,60);
     for (int i = 0; i < 4; ++i) m_cache.InsertColumn(i,cache[i],LVCFMT_LEFT,60);
     for (int i = 0; i < 3; ++i) m_proxies.InsertColumn(i,proxy[i],LVCFMT_LEFT,60);
+    for (int i = 0; i < 8; ++i) m_natTable.InsertColumn(i,nat[i],LVCFMT_LEFT,60);
 }
 void CStaticRouterDlg::SizeColumns()
 {
@@ -326,6 +417,9 @@ void CStaticRouterDlg::SizeColumns()
     m_proxies.GetClientRect(&rect); width = rect.Width()-GetSystemMetrics(SM_CXVSCROLL)-6;
     const int proxy[] = {20,34,46};
     for (int i = 0; i < 3; ++i) m_proxies.SetColumnWidth(i,(std::max)(30,width*proxy[i]/100));
+    m_natTable.GetClientRect(&rect); width = rect.Width()-GetSystemMetrics(SM_CXVSCROLL)-6;
+    const int nat[] = {8,15,10,15,10,20,13,9};
+    for (int i = 0; i < 8; ++i) m_natTable.SetColumnWidth(i,(std::max)(70,width*nat[i]/100));
 }
 void CStaticRouterDlg::RefreshTables()
 {
@@ -390,11 +484,55 @@ void CStaticRouterDlg::RefreshTables()
         }
         RestoreTop(m_proxies,top); m_proxies.SetRedraw(TRUE); m_proxies.Invalidate(); m_proxyState.swap(proxyState);
     }
+    RefreshNatTable();
+}
+
+void CStaticRouterDlg::RefreshNatTable()
+{
+    // [assignment8][nat-i] 변환 스레드는 표만 수정한다. UI 스레드는 잠금 안에서 복사한 스냅샷을 그린다.
+    // [assignment8][nat-i] 갱신 주기는 ARP와 공유하며 남은 초/항목이 그대로면 ListView를 다시 그리지 않는다.
+    const ULONGLONG now = GetTickCount64();
+    std::vector<CNatTable::ENTRY> rows;
+    m_router.GetNatEntries(rows,now);
+    std::vector<uint64_t> state;
+    for (const auto& entry : rows) for (uint64_t value : {uint64_t(entry.insideIp),uint64_t(entry.insideId),
+        uint64_t(entry.outsideIp),uint64_t(entry.outsideId),uint64_t((entry.expiresAt-now+999)/1000),
+        uint64_t(entry.protocol),uint64_t(entry.remoteIp),uint64_t(entry.remotePort),uint64_t(entry.portForward),
+        uint64_t(entry.tcpState)}) state.push_back(value);
+    if (state == m_natState) return;
+    const int top = m_natTable.GetTopIndex();
+    m_natTable.SetRedraw(FALSE); m_natTable.DeleteAllItems();
+    for (const auto& entry : rows) {
+        const TCHAR* protocol = entry.protocol == IP_PROTOCOL_TCP ? _T("TCP") :
+            (entry.protocol == IP_PROTOCOL_UDP ? _T("UDP") : _T("ICMP"));
+        const int row = m_natTable.InsertItem(m_natTable.GetItemCount(),protocol);
+        m_natTable.SetItemText(row,1,NetworkAddress::FormatIp(entry.insideIp));
+        CString value;
+        value.Format(_T("%u"),static_cast<unsigned int>(entry.insideId)); m_natTable.SetItemText(row,2,value);
+        m_natTable.SetItemText(row,3,NetworkAddress::FormatIp(entry.outsideIp));
+        value.Format(_T("%u"),static_cast<unsigned int>(entry.outsideId)); m_natTable.SetItemText(row,4,value);
+        if (entry.remoteIp) value.Format(_T("%s:%u"),static_cast<LPCTSTR>(NetworkAddress::FormatIp(entry.remoteIp)),
+            static_cast<unsigned int>(entry.remotePort));
+        else value = _T("-");
+        m_natTable.SetItemText(row,5,value);
+        CString mode = entry.portForward ? _T("PF") : _T("Dynamic");
+        if (entry.protocol == IP_PROTOCOL_TCP) {
+            const TCHAR* phase = _T("SYN");
+            if (entry.tcpState == CNatTable::TCP_STATE::Established) phase = _T("Established");
+            else if (entry.tcpState == CNatTable::TCP_STATE::HalfClosed) phase = _T("Half-closed");
+            else if (entry.tcpState == CNatTable::TCP_STATE::Closing) phase = _T("Closing");
+            mode = entry.portForward ? CString(_T("PF / ")) + CString(phase) : CString(phase);
+        }
+        m_natTable.SetItemText(row,6,mode);
+        value.Format(_T("%u"),static_cast<unsigned int>((entry.expiresAt-now+999)/1000)); m_natTable.SetItemText(row,7,value);
+    }
+    RestoreTop(m_natTable,top); m_natTable.SetRedraw(TRUE); m_natTable.Invalidate(); m_natState.swap(state);
 }
 
 void CStaticRouterDlg::RememberLayout()
 {
-    CRect design(0,0,640,340); MapDialogRect(&design); m_designSize = design.Size();
+    CRect design;
+    GetClientRect(&design); m_designSize = design.Size();
     for (CWnd* child = GetWindow(GW_CHILD); child; child = child->GetNextWindow()) {
         CRect rect; child->GetWindowRect(&rect); ScreenToClient(&rect);
         const int id = child->GetDlgCtrlID();

@@ -1,5 +1,6 @@
 #pragma once
 #include "NetworkPackets.h"
+#include "NatTable.h"
 #include <mutex>
 #include <deque>
 #include <vector>
@@ -9,7 +10,9 @@ class CEthernetLayer;
 
 // [assignment7] PARP는 MAC 대리 응답이고, 응답을 믿고 도착한 IP 데이터의 전달은 이 객체가 맡는다.
 // [assignment7] 두 물리 NIC의 connected subnet 및 사용자가 등록한 /32 next-hop 경로를 공유한다.
-// [assignment7] NAT/동적 라우팅은 하지 않는다. 앱 식별값과 무관하게 원본 IPv4 Protocol을 보존한다.
+// [assignment7] 기본 중계는 앱 식별값과 무관하게 원본 IPv4 Protocol을 보존한다.
+// [assignment8][nat-i] 수동 라우터에서 NAT를 선택하면 두 포트 사이에 ICMP Echo 주소/ID 변환을 추가한다.
+// [assignment8][nat-bonus] 같은 Forward 경로에서 TCP/UDP PAT와 정적 포트포워딩도 수행한다.
 class CIPRouter {
 public:
     struct STATS { uint64_t forwarded = 0, dropped = 0; size_t waiting = 0; };
@@ -22,6 +25,12 @@ public:
     };
     void SetStaticRouting(bool enabled);
     bool IsStaticRouting();
+    void SetNatEnabled(bool enabled);
+    void GetNatEntries(std::vector<CNatTable::ENTRY>& entries, ULONGLONG now);
+    bool AddPortForward(const CNatTable::PORT_FORWARD& rule, CString& error);
+    bool DeletePortForward(uint32_t id, CString& error);
+    void GetPortForwards(std::vector<CNatTable::PORT_FORWARD>& rules);
+    bool ValidatePortForwards(CString& error);
     bool AddStaticRoute(const STATIC_ROUTE& route, CString& error);
     void DeleteStaticRoute(uint32_t id);
     void GetStaticRoutes(std::vector<STATIC_ROUTE>& routes);
@@ -55,7 +64,7 @@ private:
         std::vector<unsigned char> packet, original;
         unsigned char previousMac[6] = {};
         int incoming = 0, outgoing = 0;
-        uint32_t nextHop = 0;
+        uint32_t nextHop = 0, routeDestination = 0; // [assignment8][nat-i] 복원된 IP로 대기 경로를 재검증한다.
         ULONGLONG expiresAt = 0;
         bool originated = false;
     };
@@ -66,6 +75,8 @@ private:
     std::vector<STATIC_ROUTE> m_staticRoutes;
     uint32_t m_nextRouteId = 1;
     bool m_staticRouting = false;
+    bool m_natEnabled = false;
+    CNatTable m_nat;
     std::deque<PENDING> m_pending;
     size_t m_pendingBytes = 0;
     STATS m_stats;
@@ -79,6 +90,7 @@ private:
     bool RouteFitsInterface(const STATIC_ROUTE& route) const;
     void DiscardChangedPendingLocked();
     bool IsDirectedBroadcast(uint32_t ip) const;
+    BOOL ReplyToPortEchoLocked(int incoming, const unsigned char* packet, int total, const unsigned char* previousMac);
     void FlushLocked(int outgoing, uint32_t nextHop, const unsigned char* mac, ULONGLONG now);
     void ErrorLocked(const PENDING& packet, unsigned char type, unsigned char code);
     void Report(const CString& text) const;
