@@ -180,12 +180,15 @@ BOOL CIPLayer::Receive(unsigned char* payload, int length, const unsigned char* 
     const uint32_t destination = ReadIp(header.destination), sender = ReadIp(header.source);
     if (!IsUnicastIp(sender) || sender == m_sourceIp)
         return FALSE;
+    // [assignment8][nat-i] Outside IP가 목적지인 Echo Reply도 라우터가 먼저 본다. IP 계층의 자기 주소 분기로
+    // [assignment8][nat-i] 먼저 폐기하면 매핑 조회가 불가능하다. NAT가 꺼진 Router II의 로컬 폐기는 Forward가 유지한다.
+    // [assignment8][nat-bonus] 외부 IP 앞으로 도착한 TCP/UDP 응답 및 포트포워딩 접속도 이 순서로 NAT에 전달한다.
+    if (m_router && m_router->IsStaticRouting())
+        return source ? m_router->Forward(m_interfaceIndex,payload,totalLength,source) : FALSE;
     // [assignment7] PARP 대리 응답 뒤 도착한 다른 호스트의 IP 패킷은 중계 객체에 넘긴다.
     if (destination != m_sourceIp && destination != IPV4_BROADCAST &&
         !(m_router && m_router->IsLocalAddress(destination)))
         return m_router && source ? m_router->Forward(m_interfaceIndex,payload,totalLength,source) : FALSE;
-    // [assignment7][static-router] 강의 범위는 transit forwarding이다. 수동 라우터 모드의 자기 IP 대상 앱/ICMP는 처리하지 않는다.
-    if (m_router && m_router->IsStaticRouting()) return FALSE;
     // [assignment6] 로컬 앱은 IPv4 단편 재조립을 지원하지 않으므로 기존 안전 검사도 유지한다.
     if (!header.ttl || (ntohs(header.flagsOffset) & 0xbfff) != 0) return FALSE;
     if (header.protocol == IP_PROTOCOL_ICMP) {

@@ -20,6 +20,7 @@
     <ClInclude Include="RouterDlg.h"><Filter>헤더 파일</Filter></ClInclude>
     <ClInclude Include="StaticRouterDlg.h"><Filter>헤더 파일</Filter></ClInclude>
     <ClInclude Include="IPRouter.h"><Filter>헤더 파일</Filter></ClInclude>
+    <ClInclude Include="NatTable.h"><Filter>헤더 파일</Filter></ClInclude>
     <ClInclude Include="NetworkAddress.h"><Filter>헤더 파일</Filter></ClInclude>
     <ClInclude Include="IPLayer.h"><Filter>헤더 파일</Filter></ClInclude>
     <ClInclude Include="ARPLayer.h"><Filter>헤더 파일</Filter></ClInclude>
@@ -73,6 +74,7 @@
     <ClCompile Include="RouterDlg.cpp"><Filter>소스 파일</Filter></ClCompile>
     <ClCompile Include="StaticRouterDlg.cpp"><Filter>소스 파일</Filter></ClCompile>
     <ClCompile Include="IPRouter.cpp"><Filter>소스 파일</Filter></ClCompile>
+    <ClCompile Include="NatTable.cpp"><Filter>소스 파일</Filter></ClCompile>
     <ClCompile Include="IPLayer.cpp"><Filter>소스 파일</Filter></ClCompile>
     <ClCompile Include="ARPLayer.cpp"><Filter>소스 파일</Filter></ClCompile>
     <ClCompile Include="ARPDlg.cpp"><Filter>소스 파일</Filter></ClCompile>

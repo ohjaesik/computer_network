@@ -103,6 +103,31 @@
 #define ROUTER_MAX_INTERFACES       2
 #define IP_PROTOCOL_ICMP           1
 #define ICMP_ERROR_RATE_PER_SECOND 10
+// [assignment8][nat-i] Port 1/2의 배열 인덱스와 ICMP Echo NAPT의 메모리/타이머 범위.
+#define NAT_INSIDE_PORT             0
+#define NAT_OUTSIDE_PORT            1
+#define ICMP_ECHO_HEADER_SIZE      8
+#define ICMP_ECHO_REQUEST          8
+#define ICMP_ECHO_REPLY            0
+#define NAT_ICMP_FIRST_ID          50001u
+#define NAT_ICMP_IDLE_MS           60000ULL
+#define NAT_TABLE_MAX_ENTRIES      256
+#define NAT_ICMP_MAX_PEERS         32
+// [assignment8][nat-bonus] TCP/UDP NAPT 및 포트포워딩 상수. IP/서버 주소와 서비스 포트는 UI 입력값이다.
+#define IP_PROTOCOL_TCP            6
+#define IP_PROTOCOL_UDP            17
+#define UDP_HEADER_SIZE            8
+#define TCP_FLAG_FIN               0x01u
+#define TCP_FLAG_SYN               0x02u
+#define TCP_FLAG_RST               0x04u
+#define TCP_FLAG_ACK               0x10u
+#define NAT_TRANSPORT_FIRST_PORT   50001u
+#define NAT_MAX_PORT_FORWARDS      32
+// Cisco NAT timeout 구분을 참고: UDP 300s, TCP SYN/종료 유예 60s, Established 24h.
+#define NAT_UDP_IDLE_MS            300000ULL
+#define NAT_TCP_SYN_MS             60000ULL
+#define NAT_TCP_IDLE_MS            86400000ULL
+#define NAT_TCP_CLOSING_MS         60000ULL
 // [assignment7][static-router] 수동 Routing Table의 flag 비트와 입력/메모리 제한이다. NIC subnet 상수와 분리한다.
 #define ROUTE_FLAG_UP               0x01u
 #define ROUTE_FLAG_GATEWAY          0x02u

@@ -22,6 +22,23 @@ private:
     CARPLayer* m_arps[ROUTER_MAX_INTERFACES];
 };
 
+// [assignment8][nat-bonus] 작은 설정창에서 TCP/UDP, 외부 Port, 내부 서버 IP/Port를 입력한다.
+// 외부 IP는 메인 화면의 Port 2 IP를 사용하므로 중복 주소 입력 없이 인터페이스 설정을 따른다.
+class CNatPortForwardDlg : public CDialogEx {
+public:
+    CNatPortForwardDlg(CIPRouter* router, CWnd* parent) : CDialogEx(IDD_NAT_PORT_FORWARD,parent), m_router(router) {}
+protected:
+    BOOL OnInitDialog() override;
+    void DoDataExchange(CDataExchange* dx) override;
+    afx_msg void OnAdd();
+    afx_msg void OnDelete();
+    DECLARE_MESSAGE_MAP()
+private:
+    CIPRouter* m_router;
+    CListCtrl m_rules;
+    void RefreshRules();
+};
+
 // [assignment7][static-router] 라우터 PC 전용 시작 화면이다. 두 NIC와 세 표를 한 창에 두고 Host용 채팅/파일 UI는 만들지 않는다.
 // [assignment7][static-router] 수동 라우팅을 기본으로 사용하며 기존 프로토콜 소스/과제 주석을 삭제하지 않는다.
 class CStaticRouterDlg : public CDialogEx {
@@ -41,6 +58,7 @@ protected:
     afx_msg void OnArpDelete();
     afx_msg void OnProxyAdd();
     afx_msg void OnProxyDelete();
+    afx_msg void OnPortForward();
     afx_msg void OnTimer(UINT_PTR id);
     afx_msg void OnDestroy();
     afx_msg void OnSize(UINT type, int cx, int cy);
@@ -61,9 +79,10 @@ private:
     CLayerManager m_layers;
     CIPRouter m_router;
     PORT m_ports[ROUTER_MAX_INTERFACES];
-    CListCtrl m_routes, m_cache, m_proxies;
+    CListCtrl m_routes, m_cache, m_proxies, m_natTable;
     std::vector<ROW_KEY> m_cacheRows, m_proxyRows;
     std::vector<uint64_t> m_routeState, m_cacheState, m_proxyState;
+    std::vector<uint64_t> m_natState;
     std::vector<CHILD_RECT> m_layout;
     CSize m_designSize;
     CString m_status, m_displayedStatus;
@@ -72,6 +91,7 @@ private:
     void StopNetwork();
     void RefreshControls();
     void RefreshTables();
+    void RefreshNatTable();
     void SetStatus(const CString& text);
     void RefreshStatus();
     void InitColumns();

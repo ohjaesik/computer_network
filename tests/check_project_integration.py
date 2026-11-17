@@ -19,7 +19,7 @@ for kind, suffix in [('ClCompile', '.cpp'), ('ClInclude', '.h')]:
     assert set(registered) == set(mapped), f'Project/filters mismatch: {kind}'
     for name in registered:
         assert name.replace('\\', '/').casefold() in available, f'Missing source: {name}'
-    for name in ('IPRouter', 'IPLayer', 'ARPLayer', 'ARPDlg', 'RouterDlg', 'StaticRouterDlg', 'NetworkPackets'):
+    for name in ('IPRouter', 'NatTable', 'IPLayer', 'ARPLayer', 'ARPDlg', 'RouterDlg', 'StaticRouterDlg', 'NetworkPackets'):
         if kind == 'ClCompile' and name == 'NetworkPackets':
             continue
         assert name + suffix in registered, f'Not registered: {name + suffix}'
@@ -41,7 +41,7 @@ for style in ('WS_THICKFRAME', 'WS_MAXIMIZEBOX'):
 assert 'WS_CLIPCHILDREN' not in main_style, 'Group-box background must participate in scroll repaint'
 page_controls = {}
 for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG',
-             'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY'):
+             'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY', 'IDD_NAT_PORT_FORWARD'):
     width, height, body = dialogs[name]
     controls = re.findall(r'^\s*(\w+)\s+.*?\b(IDC_\w+),\s*(?:"[^"]*",[^,\n]+,)?\s*(\d+),(\d+),(\d+),(\d+)', body, re.M)
     values = [control for _, control, *_ in controls if control != 'IDC_STATIC']
@@ -57,7 +57,7 @@ for name in ('IDD_IPC2019_DIALOG', 'IDD_ARP_DIALOG', 'IDD_ROUTER_DIALOG', 'IDD_R
 
 bindings = [('ipc2019DlgNetwork.cpp', {'IDD_IPC2019_DIALOG'}), ('ARPDlg.cpp', {'IDD_ARP_DIALOG'}),
             ('RouterDlg.cpp', {'IDD_ROUTER_DIALOG', 'IDD_ROUTE_ENTRY_DIALOG'}),
-            ('StaticRouterDlg.cpp', {'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY'})]
+            ('StaticRouterDlg.cpp', {'IDD_STATIC_ROUTER_MAIN', 'IDD_ROUTER_PROXY_ENTRY', 'IDD_NAT_PORT_FORWARD'})]
 for filename, targets in bindings:
     text = (source / filename).read_text(encoding='utf-8-sig')
     controls = set().union(*(page_controls[dialog] for dialog in targets))
@@ -83,6 +83,8 @@ for call in ('SetStaticRouting(true)', 'ValidateStaticRoutes(', 'CheckWiredAdapt
     assert call in router_main, f'Router-only main missing connection: {call}'
 root_controls = page_controls['IDD_STATIC_ROUTER_MAIN']
 assert {'IDC_ROUTER_START','IDC_ROUTER_END','IDC_ROUTER_ROUTES','IDC_ROUTER_ARP','IDC_ROUTER_PROXIES'} <= root_controls
+assert {'IDC_ROUTER_NAT_TABLE','IDC_ROUTER_NAT_ENABLE'} <= root_controls
+assert 'm_router.SetNatEnabled(IsDlgButtonChecked(' in router_main and 'm_router.GetNatEntries(' in router_main
 assert not any('PAGE_' in name or 'CHAT' in name or 'FILE' in name for name in root_controls)
 root_style = re.search(r'IDD_STATIC_ROUTER_MAIN DIALOGEX[^\n]+\nSTYLE ([^\n]+)',resource).group(1)
 assert 'WS_CHILD' not in root_style and 'WS_VSCROLL' not in root_style and 'WS_HSCROLL' not in root_style
